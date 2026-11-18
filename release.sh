@@ -54,4 +54,5 @@ git commit -qm "Version $V" || true
 git push -q origin HEAD
 gh release create "v$V" --repo "$REPO" --title "Foyer $V" --notes "$NOTES" \
   "$OUT/Foyer-Serveur.exe" "$OUT/Foyer-Client.exe" "$OUT/client.json" "$OUT/serveur.json"
+cp "$OUT/Foyer-Serveur.exe" "$HOME/Downloads/Foyer Serveur.exe"; cp "$OUT/Foyer-Client.exe" "$HOME/Downloads/Foyer Client.exe"
 echo "Publié : https://github.com/$REPO/releases/tag/v$V"

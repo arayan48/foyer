@@ -1,0 +1,5 @@
+app/src-tauri/icons/
+app/public/
+app/README.md
+app/icon.svg
+dist/

@@ -20,8 +20,11 @@
   let stick = true
   let confirmDelete = $state(false)
 
+  // id seul : la liste est rafraîchie toutes les 2 s, l'objet server change mais pas l'id
+  const serverId = $derived(server.id)
+
   $effect(() => {
-    const id = server.id
+    const id = serverId
     let closed = false
     let retry: ReturnType<typeof setTimeout>
     const open = () => {
