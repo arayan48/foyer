@@ -14,7 +14,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 
 ## 2. Paramètres et options
 - [x] **P1** Page **Paramètres de l'appli** (v0.1.2 : arrière-plan, démarrage auto, mises à jour, connexion ; reste : thème, langue, rafraîchissement) : thème, langue, fréquence de rafraîchissement, vérifier les mises à jour, version installée
-- [ ] **P1** Page **Paramètres d'un serveur** : nom, port, RAM, CPU, démarrage auto au boot, redémarrage auto si crash
+- [x] **P1** Page **Paramètres d'un serveur** (v0.2 : tout sauf CPU) : nom, port, RAM, CPU, démarrage auto au boot, redémarrage auto si crash
 - [ ] **P1** Éditeur `server.properties` (Minecraft) en formulaire : difficulté, joueurs max, mode de jeu, whitelist, seed, MOTD
 - [ ] **P1** Éditeur `server.cfg` (FiveM) : nom, slots, clé de licence (masquée)
 - [ ] **P2** Choix de la version du jeu (Minecraft 1.20, 1.21, 26.x… ; build FiveM recommandé / dernier)
@@ -64,15 +64,21 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P3** Découverte automatique des agents sur le réseau local
 
 ## 8. Sécurité
-- [ ] **P1** HTTPS entre client et agent (certificat auto-signé épinglé au premier appairage)
+- [x] **P1** HTTPS entre client et agent (certificat auto-signé épinglé au premier appairage)
 - [ ] **P1** Appairage par code à 6 chiffres au lieu de copier le jeton
+- [x] **P1** Jeton de la console hors de l'URL (sous-protocole WebSocket ou ticket court)
+- [ ] **P1** Jeton par appareil, révocable un par un
+- [ ] **P2** Blocage temporaire après plusieurs mauvais jetons
+- [ ] **P2** Corbeille : serveur supprimé archivé quelques jours avant effacement
+- [ ] **P2** `SECURITY.md` (signaler une faille en privé) + `cargo audit` / `npm audit` dans GitHub Actions
+- [ ] **P3** Doc : accès à distance via VPN (Tailscale, WireGuard) plutôt que port ouvert sur la box
 - [ ] **P2** Comptes utilisateurs et rôles (admin, modérateur, lecture seule) pour les amis
 - [ ] **P2** Journal des actions (qui a démarré / arrêté quoi)
 - [ ] **P2** Faire tourner les jeux sous un compte Windows dédié, pas SYSTEM
 - [ ] **P3** Sauvegarde de la clé de signature des mises à jour (aujourd'hui seulement sur claude-box)
 
 ## 9. Planification et automatisation
-- [ ] **P1** Redémarrage auto si crash (avec limite de tentatives)
+- [x] **P1** Redémarrage auto si crash (avec limite de tentatives)
 - [ ] **P2** Tâches planifiées : redémarrage quotidien, sauvegarde, commande, message aux joueurs
 - [ ] **P2** Démarrage auto des serveurs choisis au boot de la machine
 - [ ] **P3** Webhooks Discord (serveur en ligne, crash, joueur connecté)

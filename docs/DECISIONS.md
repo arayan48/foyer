@@ -12,3 +12,5 @@
 | 2026-11-18 | Build sur claude-box (cross-compilation) | Pas de Rust sur le Mac ; claude-box est la machine de travail |
 | 2026-11-18 | Licence MIT | Simple, permissive |
 | 2026-11-18 | Nom « Foyer », accent rose braise | Héberger chez soi ; identité propre, pas copiée de HTN |
+| 2026-11-19 | Sécurité sans service externe : certificat auto-signé épinglé, appairage local | Un service tiers (domaine, Let's Encrypt, relais) peut fermer ; l'agent doit rester sûr tout seul |
+| 2026-11-19 | Peu de dépendances, seulement des bibliothèques connues et maintenues | Une dépendance ou un service peut mourir à tout moment ; tout ce qui est externe reste optionnel |
