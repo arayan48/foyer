@@ -1,0 +1,63 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Foyer",
+  "version": "0.1.0",
+  "identifier": "fr.foyer.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Foyer",
+        "width": 1240,
+        "height": 800,
+        "minWidth": 760,
+        "minHeight": 540,
+        "backgroundColor": "#171214"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "appimage",
+      "deb"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "French"
+        ],
+        "installerIcon": "icons/icon.ico"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ5MjhFMTQ1MTFBNjZCMjkKUldRcGE2WVJSZUVvU1RPbVdUWUFlZkVqTDl3dDhKaGVUSWE0VFNTcys1eDVKUlF0a0xDN25vaHEK",
+      "endpoints": [
+        "https://github.com/arayan48/foyer/releases/latest/download/client.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

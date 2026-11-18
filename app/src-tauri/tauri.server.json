@@ -1,0 +1,26 @@
+{
+  "productName": "Foyer Serveur",
+  "identifier": "fr.foyer.server",
+  "bundle": {
+    "externalBin": [
+      "binaries/foyer-agent"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "installer.nsh",
+        "languages": [
+          "French"
+        ],
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/arayan48/foyer/releases/latest/download/serveur.json"
+      ]
+    }
+  }
+}
