@@ -13,7 +13,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P3** Alerte si un serveur dépasse sa limite longtemps
 
 ## 2. Paramètres et options
-- [ ] **P1** Page **Paramètres de l'appli** : thème, langue, fréquence de rafraîchissement, vérifier les mises à jour, version installée
+- [x] **P1** Page **Paramètres de l'appli** (v0.1.2 : arrière-plan, démarrage auto, mises à jour, connexion ; reste : thème, langue, rafraîchissement) : thème, langue, fréquence de rafraîchissement, vérifier les mises à jour, version installée
 - [ ] **P1** Page **Paramètres d'un serveur** : nom, port, RAM, CPU, démarrage auto au boot, redémarrage auto si crash
 - [ ] **P1** Éditeur `server.properties` (Minecraft) en formulaire : difficulté, joueurs max, mode de jeu, whitelist, seed, MOTD
 - [ ] **P1** Éditeur `server.cfg` (FiveM) : nom, slots, clé de licence (masquée)
@@ -31,7 +31,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P2** Thème clair + choix de la couleur d'accent
 - [ ] **P2** Palette de commandes (Ctrl+K) : démarrer, aller à un serveur, ouvrir la console
 - [ ] **P2** Notifications Windows : serveur planté, mise à jour dispo, sauvegarde finie
-- [ ] **P2** Icône dans la zone de notification (près de l'horloge) avec état des serveurs
+- [x] **P2** Icône dans la zone de notification (près de l'horloge) avec état des serveurs
 - [ ] **P3** Mode compact / mode « grand écran »
 - [ ] **P3** Version Mac (.dmg) — à compiler sur un Mac
 

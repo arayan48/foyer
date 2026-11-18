@@ -1,22 +1,26 @@
 <script lang="ts">
-  import { Flame, Server as ServerIcon, LogOut } from 'lucide-svelte'
+  import { Flame, Server as ServerIcon, Settings as SettingsIcon } from 'lucide-svelte'
   import Connect from './lib/Connect.svelte'
   import ServerList from './lib/ServerList.svelte'
   import NewServer from './lib/NewServer.svelte'
   import ServerView from './lib/ServerView.svelte'
   import Update from './lib/Update.svelte'
+  import SettingsView from './lib/SettingsView.svelte'
+  import { applySettings, loadSettings } from './lib/settings'
   import { call, loadConn, saveConn, host, bytes, AuthError, type Conn, type Host, type Server } from './lib/api'
 
   let conn = $state<Conn | null>(loadConn())
   let servers = $state<Server[]>([])
   let sys = $state<Host | null>(null)
   let loading = $state(true)
-  let view = $state<{ name: 'list' } | { name: 'new' } | { name: 'server'; id: string }>({ name: 'list' })
+  let view = $state<{ name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'server'; id: string }>({ name: 'list' })
   let toast = $state('')
   let toastTimer: ReturnType<typeof setTimeout>
 
   const current = $derived(view.name === 'server' ? servers.find((s) => s.id === (view as { id: string }).id) : undefined)
   const address = $derived(conn ? host(conn) : '')
+
+  applySettings(loadSettings()) // transmet « rester en arrière-plan » à la fenêtre
 
   function say(m: string) {
     toast = m
@@ -80,8 +84,11 @@
   <div class="shell">
     <nav>
       <div class="brand"><Flame size={18} /> Foyer</div>
-      <button class="nav-item on" aria-current="page" onclick={() => (view = { name: 'list' })}>
+      <button class="nav-item" class:on={view.name !== 'settings'} aria-current={view.name !== 'settings' ? 'page' : undefined} onclick={() => (view = { name: 'list' })}>
         <ServerIcon size={16} /> Serveurs
+      </button>
+      <button class="nav-item" class:on={view.name === 'settings'} aria-current={view.name === 'settings' ? 'page' : undefined} onclick={() => (view = { name: 'settings' })}>
+        <SettingsIcon size={16} /> Paramètres
       </button>
       <div class="machine">
         {#if sys}
@@ -93,11 +100,12 @@
             <dt>Disque</dt><dd><span class="bar"><span style:width="{(1 - sys.disk_free / sys.disk_total) * 100}%"></span></span>{bytes(sys.disk_free)} libres</dd>
           </dl>
         {/if}
-        <button class="nav-item" onclick={logout}><LogOut size={16} /> Se déconnecter</button>
       </div>
     </nav>
     <main>
-      {#if view.name === 'new'}
+      {#if view.name === 'settings'}
+        <SettingsView conn={conn} onlogout={logout} />
+      {:else if view.name === 'new'}
         <NewServer conn={conn} {servers} oncancel={() => (view = { name: 'list' })} oncreated={(s) => { refresh(); view = { name: 'server', id: s.id } }} />
       {:else if view.name === 'server' && current}
         <ServerView conn={conn} server={current} {address} onback={() => (view = { name: 'list' })} onaction={act} ondelete={remove} />
