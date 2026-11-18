@@ -1,0 +1,12 @@
+{
+  "0": "agent/src/main.rs",
+  "1": "App.svelte",
+  "9": "SettingsView.svelte",
+  "14": "lib.rs",
+  "29": "ServerView.svelte",
+  "30": "agent.rs",
+  "31": "create",
+  "32": "App",
+  "33": "tls",
+  "34": "Status"
+}

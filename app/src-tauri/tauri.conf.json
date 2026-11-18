@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Foyer",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "identifier": "fr.foyer.app",
   "build": {
     "frontendDist": "../dist",
@@ -56,7 +56,7 @@
         "https://github.com/arayan48/foyer/releases/latest/download/client.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }

@@ -22,6 +22,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P2** Variables / arguments Java avancés (flags Aikar)
 - [ ] **P2** Paramètres de l'agent depuis l'appli : port, dossier de données, régénérer le jeton
 - [ ] **P3** Profils de réglages réutilisables (« Survie 10 joueurs », « RP 32 slots »)
+- [ ] **P2** Fréquence de vérification des mises à jour réglable (aujourd'hui fixe : au lancement puis toutes les 6 h), avec bouton « Vérifier maintenant »
 
 ## 3. Interface et style
 - [ ] **P1** Vrais visuels des jeux dans la liste et la création (bannière + icône par jeu) — voir note droits ci-dessous
