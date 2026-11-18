@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};
 
@@ -61,9 +61,14 @@ pub fn run() {
             .build(),
         )?;
       }
-      let open = MenuItem::with_id(app, "open", "Ouvrir Foyer", true, None::<&str>)?;
-      let quit = MenuItem::with_id(app, "quit", "Quitter Foyer", true, None::<&str>)?;
-      let menu = Menu::with_items(app, &[&open, &quit])?;
+      // en-tête grisé avec la version, puis actions, Quitter isolé en bas
+      let title = format!("Foyer {}", app.package_info().version);
+      let head = MenuItem::with_id(app, "head", title, false, None::<&str>)?;
+      let open = MenuItem::with_id(app, "open", "Ouvrir la fenêtre", true, None::<&str>)?;
+      let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
+      let sep1 = PredefinedMenuItem::separator(app)?;
+      let sep2 = PredefinedMenuItem::separator(app)?;
+      let menu = Menu::with_items(app, &[&head, &sep1, &open, &sep2, &quit])?;
       TrayIconBuilder::with_id("foyer")
         .icon(app.default_window_icon().cloned().expect("icône"))
         .tooltip("Foyer")
