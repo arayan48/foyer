@@ -2,7 +2,7 @@
 
 !macro NSIS_HOOK_PREINSTALL
   ; mise à jour : arrêt propre des jeux (sauvegarde des mondes), puis libère foyer-agent.exe
-  nsExec::Exec `powershell -NoProfile -Command "try { $$t = (Get-Content C:\Foyer\token -Raw).Trim(); Invoke-RestMethod -Method Post -Uri http://127.0.0.1:7878/api/shutdown -Headers @{Authorization=('Bearer ' + $$t)} -TimeoutSec 120 } catch {}"`
+  nsExec::Exec `powershell -NoProfile -Command "try { $$t = (Get-Content C:\Foyer\token -Raw).Trim(); $$h = @{Authorization=('Bearer ' + $$t)}; [Net.ServicePointManager]::SecurityProtocol = 'Tls12'; [Net.ServicePointManager]::ServerCertificateValidationCallback = {$$true}; try { Invoke-RestMethod -Method Post -Uri https://127.0.0.1:7878/api/shutdown -Headers $$h -TimeoutSec 120 } catch { Invoke-RestMethod -Method Post -Uri http://127.0.0.1:7878/api/shutdown -Headers $$h -TimeoutSec 120 } } catch {}"`
   nsExec::Exec 'schtasks /End /TN "Foyer Agent"'
   nsExec::Exec 'taskkill /F /T /IM foyer-agent.exe'
   Sleep 1000

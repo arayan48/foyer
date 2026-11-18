@@ -6,7 +6,7 @@ _État : v0.1.0 (2026-11-18)._
 
 ```
  PC de Rayan                         Machine serveur (.240, Windows Server 2025)
-┌──────────────────┐   HTTP + WS    ┌──────────────────────────────────────────┐
+┌──────────────────┐  HTTPS + WSS   ┌──────────────────────────────────────────┐
 │  Foyer Client    │ ─────────────▶ │  foyer-agent.exe  (port 7878, SYSTEM)    │
 │  (Tauri+Svelte)  │  jeton Bearer  │   ├─ API REST /api/...                   │
 └──────────────────┘                │   ├─ WebSocket console                   │
@@ -32,26 +32,29 @@ Deux installeurs construits à partir de la même appli :
 
 | Fichier | Rôle |
 |---|---|
-| `main.rs` | serveur HTTP (axum 0.8), auth, état, cycle de vie des processus, stats, pare-feu, persistance |
+| `main.rs` | serveur HTTPS (axum 0.8 + axum-server/rustls, certificat auto-signé via rcgen), auth, état, cycle de vie des processus, stats, pare-feu, persistance |
 | `games.rs` | recettes de jeux : installation (téléchargements, extraction), commande de lancement, ports, commande d'arrêt, marqueur « prêt » |
 | `build.rs` | icône Windows de l'exe |
 
 ### Données (`FOYER_DATA`, défaut `C:\Foyer` ou `/var/lib/foyer`)
 ```
 token                 jeton (32 hex), créé au premier lancement
-servers.json          liste des serveurs (id, name, game, port, ram_mb)
+cert.pem, key.pem      certificat auto-signé de l'agent, créé au premier lancement
+fingerprint           empreinte SHA-256 du certificat (à comparer à la connexion)
+servers.json          liste des serveurs (id, name, game, port, ram_mb, auto_start, auto_restart)
 runtime/java25/       Java Temurin 25 partagé (Minecraft)
 servers/<id>/         fichiers d'un serveur (server.jar, monde, artifacts FiveM…)
 ```
 
 ### API
-Toutes les routes exigent `Authorization: Bearer <jeton>` (ou `?token=` pour le WebSocket).
+Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (jamais dans l'URL).
 
 | Méthode | Route | Effet |
 |---|---|---|
 | GET | `/api/system` | machine : nom, OS, CPU %, RAM, disque |
 | GET | `/api/servers` | serveurs + statut, cpu, mem, admin_port |
 | POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` |
+| PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
 | DELETE | `/api/servers/{id}` | arrête, retire le pare-feu, **efface le dossier** |
 | POST | `/api/servers/{id}/start\|stop\|restart` | cycle de vie |
 | GET (WS) | `/api/servers/{id}/console` | 1000 dernières lignes puis direct ; texte envoyé = commande stdin |
@@ -59,6 +62,7 @@ Toutes les routes exigent `Authorization: Bearer <jeton>` (ou `?token=` pour le 
 
 ### Statuts
 `installing → stopped → starting → running → stopping → stopped`, `error` si install ratée ou processus mort sans demande d'arrêt.
+Crash + `auto_restart` : relance après 5 s, 3 essais max par fenêtre de 10 min. `auto_start` : lancé au démarrage de l'agent (donc au boot).
 « running » = ligne de log contenant le marqueur du jeu (`Done (` pour Minecraft, `txAdmin` pour FiveM).
 
 ### Arrêt
@@ -77,15 +81,18 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 | Fichier | Rôle |
 |---|---|
 | `src/App.svelte` | coquille : barre latérale (machine), navigation liste / création / détail, rafraîchissement 2 s, toasts |
-| `src/lib/api.ts` | types, appels HTTP, URL console, textes des jeux et statuts, formatage |
-| `src/lib/Connect.svelte` | connexion (adresse + jeton) ; auto-connexion à l'agent local via la commande Tauri `local_token` |
+| `src/lib/api.ts` | types, appels à l'agent (via Rust dans l'appli, `fetch` dans un navigateur), console, textes des jeux et statuts, formatage |
+| `src/lib/Connect.svelte` | connexion (adresse + jeton) ; vérification de l'empreinte ; auto-connexion à l'agent local via la commande Tauri `local_agent` |
 | `src/lib/ServerList.svelte` | liste des serveurs, état, CPU/RAM, actions |
 | `src/lib/NewServer.svelte` | création : choix du jeu, nom, RAM, EULA, port libre auto |
 | `src/lib/ServerView.svelte` | détail : infos, console WebSocket, commandes, suppression confirmée |
+| `src/lib/ServerView.svelte` → onglets | Console, Général, Réseau, Version, Propriétés (Minecraft) ou FiveM (txAdmin, clé Cfx.re, server.cfg), Joueurs, Fichiers, Sauvegardes. Ce qui n'a pas encore d'API est affiché désactivé avec « Bientôt » |
+| `src/lib/SaveBar.svelte` | barre « Enregistrer / Annuler » qui apparaît quand une page est modifiée |
 | `src/lib/Update.svelte` | bandeau de mise à jour (plugin updater) |
-| `src/lib/GameMark.svelte` | pastille de jeu (icône Lucide + couleur) |
+| `src/lib/GameMark.svelte` | pastille de jeu : bloc d'herbe dessiné pour Minecraft, logo FiveM (simple-icons, CC0) |
 | `src/app.css` | jetons de design (OKLCH, sombre, accent rose braise `oklch(0.72 0.18 357)`), boutons, champs |
-| `src-tauri/src/lib.rs` | plugins (updater, process), commande `local_token` |
+| `src-tauri/src/lib.rs` | plugins (updater, process), commande `local_agent`
+| `src-tauri/src/agent.rs` | HTTPS + WSS vers l'agent avec certificat épinglé (rustls + ring, pas d'autorité externe) | |
 | `src-tauri/installer.nsh` | hooks NSIS du serveur : tâche planifiée, pare-feu, question interface, arrêt propre avant mise à jour |
 | `mock-agent.mjs` | faux agent pour travailler l'interface (`node mock-agent.mjs`, jeton `test`) |
 
@@ -97,14 +104,14 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 
 ## Mises à jour
 
-- Plugin `tauri-plugin-updater`. L'appli lit `https://github.com/arayan48/foyer/releases/latest/download/{client|serveur}.json` au lancement puis toutes les 6 h.
+- Plugin `tauri-plugin-updater`. L'appli lit `https://github.com/arayan48/foyer/releases/latest/download/{client|serveur}.json` au lancement puis toutes les 6 h, télécharge en fond, puis bouton « Redémarrer » : installateur sans fenêtre (`installMode: "quiet"`) et relance.
 - Installeurs signés (minisign). **Clé privée seulement sur claude-box** : `~/.tauri/foyer.key` (sans mot de passe). Clé publique dans `tauri.conf.json`.
 - Mise à jour serveur : `PREINSTALL` appelle `/api/shutdown` (sauvegarde des mondes), tue l'agent, remplace les fichiers ; `POSTINSTALL` relance la tâche sans reposer de question.
 - Limite connue : serveur installé sans interface = pas de mise à jour automatique.
 
 ## Sécurité (état actuel)
 
-- Jeton comparé en temps constant. HTTP **non chiffré** : réseau local uniquement.
+- Jeton comparé en temps constant. HTTPS avec certificat auto-signé épinglé (empreinte confirmée par l'utilisateur, comme SSH). Ne pas exposer 7878 sur Internet pour autant.
 - Pare-feu Windows : 7878 et ports de jeu ouverts en `remoteip=localsubnet`.
 - Agent et jeux tournent en **SYSTEM** (à changer, voir PLAN).
 - Ne jamais rediriger 7878 sur la Freebox.

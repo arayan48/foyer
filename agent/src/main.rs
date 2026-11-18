@@ -4,7 +4,7 @@ mod games;
 
 use anyhow::Result;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path as UrlPath, Query, Request, State};
+use axum::extract::{Path as UrlPath, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -134,22 +134,37 @@ async fn main() -> Result<()> {
         .with_state(app);
 
     let addr = std::env::var("FOYER_ADDR").unwrap_or_else(|_| "0.0.0.0:7878".into());
-    println!("Foyer agent sur http://{addr}  données : {}", data.display());
+    println!("Foyer agent sur https://{addr}  données : {}", data.display());
     println!("Jeton : fichier {}", data.join("token").display());
-    let l = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(l, api).await?;
+    let (tls, fp) = tls(&data).await?;
+    println!("Empreinte du certificat : {fp}");
+    axum_server::bind_rustls(addr.parse()?, tls).serve(api.into_make_service()).await?;
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct TokenQ {
-    token: Option<String>,
+/// Certificat auto-signé créé au premier lancement ; le client épingle son empreinte (pas d'autorité externe).
+async fn tls(data: &std::path::Path) -> Result<(axum_server::tls_rustls::RustlsConfig, String)> {
+    use rustls::pki_types::{pem::PemObject, CertificateDer};
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let (cert, key) = (data.join("cert.pem"), data.join("key.pem"));
+    if !cert.exists() || !key.exists() {
+        let ck = rcgen::generate_simple_self_signed(vec!["foyer".into()])?;
+        tokio::fs::write(&key, ck.key_pair.serialize_pem()).await?;
+        tokio::fs::write(&cert, ck.cert.pem()).await?;
+    }
+    let der = CertificateDer::from_pem_file(&cert)?;
+    let fp = fingerprint(&der);
+    tokio::fs::write(data.join("fingerprint"), &fp).await?;
+    Ok((axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?, fp))
 }
 
-async fn auth(State(app): S, Query(q): Query<TokenQ>, req: Request, next: Next) -> Response {
-    let header = req.headers().get("authorization").and_then(|h| h.to_str().ok()).and_then(|h| h.strip_prefix("Bearer "));
-    // le WebSocket du navigateur ne peut pas envoyer d'en-tête : jeton aussi accepté en paramètre
-    let given = header.map(str::to_string).or(q.token).unwrap_or_default();
+fn fingerprint(der: &[u8]) -> String {
+    ring::digest::digest(&ring::digest::SHA256, der).as_ref().iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":")
+}
+
+async fn auth(State(app): S, req: Request, next: Next) -> Response {
+    // jeton seulement en en-tête : jamais dans l'URL, qui finit dans les journaux
+    let given = req.headers().get("authorization").and_then(|h| h.to_str().ok()).and_then(|h| h.strip_prefix("Bearer ")).unwrap_or_default().to_string();
     if req.method() == axum::http::Method::OPTIONS || eq_ct(given.as_bytes(), app.token.as_bytes()) {
         next.run(req).await
     } else {
@@ -604,6 +619,13 @@ async fn firewall(s: &Server, open: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fingerprint_format() {
+        let fp = super::fingerprint(b"abc");
+        assert_eq!(fp.len(), 32 * 3 - 1);
+        assert!(fp.starts_with("BA:78:16:BF"));
+    }
 
     #[test]
     fn retry_limit() {

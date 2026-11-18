@@ -2,7 +2,7 @@
 
 Gestion de serveurs de jeu (Minecraft, FiveM) chez soi, sous Windows ou Linux.
 
-- `agent/` : service Rust installé sur la machine qui héberge les jeux. Il télécharge, lance, arrête et surveille les serveurs, et expose une API HTTP + WebSocket protégée par un jeton (port 7878).
+- `agent/` : service Rust installé sur la machine qui héberge les jeux. Il télécharge, lance, arrête et surveille les serveurs, et expose une API HTTPS + WebSocket protégée par un jeton (port 7878). Certificat auto-signé créé au premier lancement ; l'appli épingle son empreinte (fichier `fingerprint`).
 - `app/` : application de bureau Tauri (Rust + Svelte) qui se connecte à l'agent.
 
 ## Agent
@@ -15,7 +15,7 @@ cargo build --release --target x86_64-pc-windows-gnu    # Windows (depuis Linux,
 Variables : `FOYER_DATA` (défaut `C:\Foyer` ou `/var/lib/foyer`), `FOYER_ADDR` (défaut `0.0.0.0:7878`).
 Le jeton est créé au premier lancement dans `<FOYER_DATA>/token`.
 
-À garder sur le réseau local : le trafic n'est pas chiffré (HTTP). Pour jouer depuis l'extérieur, passer par un VPN ou playit.gg, jamais en ouvrant le port 7878 sur la box.
+Le trafic est chiffré (HTTPS, certificat épinglé). À la première connexion, comparer l'empreinte affichée par l'appli avec le fichier `C:\Foyer\fingerprint` du serveur. Pour jouer depuis l'extérieur, passer par un VPN ou playit.gg, jamais en ouvrant le port 7878 sur la box.
 
 ## Application
 

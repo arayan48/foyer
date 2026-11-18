@@ -7,10 +7,13 @@ export interface Server {
   game: Game
   port: number
   ram_mb: number
+  auto_start: boolean
+  auto_restart: boolean
   status: Status
   cpu: number
   mem: number
   admin_port: number | null
+  version?: string
 }
 
 export interface Host {
@@ -26,13 +29,21 @@ export interface Host {
 export interface Conn {
   url: string
   token: string
+  /** empreinte SHA-256 du certificat de l'agent, vérifiée à la connexion */
+  fp?: string
 }
+
+/** Dans l'appli : passage par Rust (certificat épinglé). Dans un navigateur : fetch direct (faux agent de test). */
+export const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+const tauri = () => import('@tauri-apps/api/core')
 
 const KEY = 'foyer.conn'
 
 export function loadConn(): Conn | null {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? 'null')
+    const c: Conn | null = JSON.parse(localStorage.getItem(KEY) ?? 'null')
+    // ancienne connexion en HTTP sans empreinte : on se reconnecte
+    return inTauri && !c?.fp ? null : c
   } catch {
     return null
   }
@@ -46,7 +57,7 @@ export function saveConn(c: Conn | null) {
 
 export function normalizeUrl(u: string) {
   u = u.trim().replace(/\/+$/, '')
-  if (!/^https?:\/\//.test(u)) u = 'http://' + u
+  if (!/^https?:\/\//.test(u)) u = 'https://' + u
   if (!/:\d+$/.test(u)) u += ':7878'
   return u
 }
@@ -54,17 +65,71 @@ export function normalizeUrl(u: string) {
 export class AuthError extends Error {}
 
 export async function call<T>(c: Conn, path: string, init: RequestInit = {}): Promise<T> {
-  const r = await fetch(c.url + path, {
-    ...init,
-    headers: { Authorization: `Bearer ${c.token}`, 'Content-Type': 'application/json', ...init.headers },
-  })
-  if (r.status === 401) throw new AuthError('Jeton refusé')
-  if (!r.ok) throw new Error((await r.text()) || `Erreur ${r.status}`)
-  return r.status === 204 ? (undefined as T) : r.json()
+  let status: number, text: string
+  if (inTauri) {
+    const { invoke } = await tauri()
+    try {
+      ;[status, text] = await invoke<[number, string]>('agent_call', {
+        url: c.url, fp: c.fp ?? '', token: c.token, method: init.method ?? 'GET', path, body: init.body ?? null,
+      })
+    } catch (e) {
+      if (e === 'EMPREINTE') throw new AuthError('Le certificat du serveur a changé. Reconnecte-toi et vérifie l\'empreinte.')
+      throw new Error(String(e))
+    }
+  } else {
+    const r = await fetch(c.url + path, {
+      ...init,
+      headers: { Authorization: `Bearer ${c.token}`, 'Content-Type': 'application/json', ...init.headers },
+    })
+    ;[status, text] = [r.status, await r.text()]
+  }
+  if (status === 401) throw new AuthError('Jeton refusé')
+  if (status < 200 || status >= 300) throw new Error(text || `Erreur ${status}`)
+  return status === 204 || !text ? (undefined as T) : JSON.parse(text)
 }
 
-export function consoleUrl(c: Conn, id: string) {
-  return `${c.url.replace(/^http/, 'ws')}/api/servers/${id}/console?token=${encodeURIComponent(c.token)}`
+/** Empreinte du certificat présenté par l'agent, lue sans envoyer le jeton. */
+export async function probe(url: string): Promise<string> {
+  const { invoke } = await tauri()
+  return invoke<string>('agent_probe', { url })
+}
+
+export interface Console {
+  send(text: string): void
+  close(): void
+}
+
+/** Console en direct d'un serveur. onclose est appelé si la connexion tombe. */
+export async function openConsole(c: Conn, id: string, online: (l: string) => void, onclose: () => void): Promise<Console> {
+  if (!inTauri) {
+    const ws = new WebSocket(`${c.url.replace(/^http/, 'ws')}/api/servers/${id}/console`)
+    ws.onmessage = (e) => online(e.data)
+    ws.onclose = onclose
+    await new Promise((ok, ko) => ((ws.onopen = ok), (ws.onerror = ko)))
+    return { send: (t) => ws.send(t), close: () => ((ws.onclose = null), ws.close()) }
+  }
+  const { invoke } = await tauri()
+  const { listen } = await import('@tauri-apps/api/event')
+  const key = crypto.randomUUID()
+  const stop = await listen<{ key: string; line: string | null }>('console', (e) => {
+    if (e.payload.key !== key) return
+    if (e.payload.line === null) (stop(), onclose())
+    else online(e.payload.line)
+  })
+  try {
+    await invoke('console_open', { key, url: c.url, fp: c.fp ?? '', token: c.token, id })
+  } catch (e) {
+    stop()
+    throw e
+  }
+  return {
+    send: (text) => invoke('console_send', { key, text }),
+    close: () => (stop(), invoke('console_close', { key })),
+  }
+}
+
+export function patchServer(c: Conn, id: string, body: Partial<Server>) {
+  return call<Server>(c, `/api/servers/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 }
 
 export function host(c: Conn) {

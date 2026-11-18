@@ -6,16 +6,18 @@ use tauri::{AppHandle, Manager, WindowEvent};
 /// Fermer la fenêtre = la cacher (Foyer reste dans la barre), comme Discord.
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
 
-/// Jeton de l'agent installé sur cette même machine, s'il existe.
+mod agent;
+
+/// Agent installé sur cette même machine : jeton et empreinte de son certificat.
 #[tauri::command]
-fn local_token() -> Option<String> {
+fn local_agent() -> Option<(String, String)> {
   let data = std::env::var("FOYER_DATA").unwrap_or_else(|_| {
     if cfg!(windows) { r"C:\Foyer".into() } else { "/var/lib/foyer".into() }
   });
-  std::fs::read_to_string(std::path::Path::new(&data).join("token"))
-    .ok()
-    .map(|t| t.trim().to_string())
-    .filter(|t| !t.is_empty())
+  let read = |f: &str| {
+    std::fs::read_to_string(std::path::Path::new(&data).join(f)).ok().map(|t| t.trim().to_string()).filter(|t| !t.is_empty())
+  };
+  Some((read("token")?, read("fingerprint")?))
 }
 
 #[tauri::command]
@@ -42,7 +44,15 @@ pub fn run() {
       tauri_plugin_autostart::MacosLauncher::LaunchAgent,
       Some(vec!["--minimized"]),
     ))
-    .invoke_handler(tauri::generate_handler![local_token, set_close_to_tray])
+    .invoke_handler(tauri::generate_handler![
+      local_agent,
+      set_close_to_tray,
+      agent::agent_probe,
+      agent::agent_call,
+      agent::console_open,
+      agent::console_send,
+      agent::console_close
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
