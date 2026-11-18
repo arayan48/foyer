@@ -1,7 +1,14 @@
 <script lang="ts">
-  import { ArrowLeft, Play, Square, RotateCw, Trash2, ExternalLink } from 'lucide-svelte'
+  import { ArrowLeft, Play, Square, RotateCw, Terminal, SlidersHorizontal, Network, Package, KeyRound, FileCog, Users, FolderOpen, Archive } from 'lucide-svelte'
   import GameMark from './GameMark.svelte'
-  import { GAMES, STATUS, bytes, consoleUrl, type Conn, type Server } from './api'
+  import ServerConsole from './ServerConsole.svelte'
+  import ServerGeneral from './ServerGeneral.svelte'
+  import ServerNetwork from './ServerNetwork.svelte'
+  import ServerVersion from './ServerVersion.svelte'
+  import ServerFivem from './ServerFivem.svelte'
+  import ServerProperties from './ServerProperties.svelte'
+  import ServerSoon from './ServerSoon.svelte'
+  import { GAMES, STATUS, type Conn, type Server } from './api'
 
   let { conn, server, address, onback, onaction, ondelete }: {
     conn: Conn
@@ -12,61 +19,34 @@
     ondelete: (s: Server) => void
   } = $props()
 
-  let lines = $state<string[]>([])
-  let cmd = $state('')
-  let connected = $state(false)
-  let out: HTMLElement
-  let ws: WebSocket | null = null
-  let stick = true
-  let confirmDelete = $state(false)
+  const mc = $derived(server.game === 'minecraft')
+  const tabs = $derived([
+    { id: 'console', label: 'Console', icon: Terminal },
+    { id: 'general', label: 'Général', icon: SlidersHorizontal },
+    { id: 'network', label: 'Réseau', icon: Network },
+    { id: 'version', label: 'Version', icon: Package },
+    mc ? { id: 'properties', label: 'Propriétés', icon: FileCog } : { id: 'fivem', label: 'FiveM', icon: KeyRound },
+    { id: 'players', label: 'Joueurs', icon: Users, soon: true },
+    { id: 'files', label: 'Fichiers', icon: FolderOpen, soon: true },
+    { id: 'backups', label: 'Sauvegardes', icon: Archive, soon: true },
+  ])
+  let tab = $state('console')
 
-  // id seul : la liste est rafraîchie toutes les 2 s, l'objet server change mais pas l'id
-  const serverId = $derived(server.id)
-
-  $effect(() => {
-    const id = serverId
-    let closed = false
-    let retry: ReturnType<typeof setTimeout>
-    const open = () => {
-      lines = []
-      ws = new WebSocket(consoleUrl(conn, id))
-      ws.onopen = () => (connected = true)
-      ws.onmessage = (e) => {
-        lines.push(e.data)
-        if (lines.length > 2000) lines.splice(0, lines.length - 2000)
-      }
-      ws.onclose = () => {
-        connected = false
-        if (!closed) retry = setTimeout(open, 2000)
-      }
-    }
-    open()
-    return () => {
-      closed = true
-      clearTimeout(retry)
-      ws?.close()
-    }
-  })
-
-  $effect(() => {
-    lines.length
-    if (stick && out) queueMicrotask(() => (out.scrollTop = out.scrollHeight))
-  })
-
-  function send(e: SubmitEvent) {
-    e.preventDefault()
-    if (!cmd.trim() || ws?.readyState !== WebSocket.OPEN) return
-    ws.send(cmd)
-    cmd = ''
+  // flèches gauche/droite entre onglets (motif ARIA tablist)
+  function keys(e: KeyboardEvent) {
+    const i = tabs.findIndex((t) => t.id === tab)
+    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    if (!d) return
+    tab = tabs[(i + d + tabs.length) % tabs.length].id
+    queueMicrotask(() => (document.querySelector('[role=tab][aria-selected=true]') as HTMLElement)?.focus())
   }
 
-  const kind = (l: string) => (l.startsWith('[foyer]') ? 'sys' : l.startsWith('> ') ? 'cmd' : /\b(ERROR|SEVERE|Exception)\b/.test(l) ? 'bad' : /\bWARN/.test(l) ? 'warn' : '')
   const canRun = $derived(server.status === 'stopped' || server.status === 'error')
 </script>
 
 <header>
   <button class="btn icon" onclick={onback} aria-label="Retour"><ArrowLeft size={16} /></button>
-  <GameMark game={server.game} size={36} />
+  <GameMark game={server.game} size={40} />
   <div class="title">
     <h1>{server.name}</h1>
     <p class="sub"><span class="st {server.status}">{STATUS[server.status]}</span> · {GAMES[server.game].label} · <span class="num">{address}:{server.port}</span></p>
@@ -81,37 +61,39 @@
   </div>
 </header>
 
-<section class="facts">
-  <div><span>Processeur</span><strong>{canRun ? '–' : Math.round(server.cpu) + ' %'}</strong></div>
-  <div><span>Mémoire</span><strong>{canRun ? '–' : bytes(server.mem)}</strong><small>/ {bytes(server.ram_mb * 1024 ** 2)}</small></div>
-  <div><span>Adresse à donner aux joueurs</span><strong class="num">{address}:{server.port}</strong></div>
-  {#if server.admin_port}
-    <div><span>txAdmin</span><a href="http://{address}:{server.admin_port}" target="_blank" rel="noreferrer">Ouvrir <ExternalLink size={13} /></a></div>
-  {/if}
-</section>
+<div class="tabs" role="tablist" aria-label="Sections du serveur" tabindex="-1" onkeydown={keys}>
+  {#each tabs as t (t.id)}
+    <button role="tab" id="tab-{t.id}" aria-selected={tab === t.id} aria-controls="page" tabindex={tab === t.id ? 0 : -1} class:soon-tab={t.soon} onclick={() => (tab = t.id)}>
+      <t.icon size={15} /> {t.label}
+    </button>
+  {/each}
+</div>
 
-<section class="console">
-  <div class="bar">
-    <span>Console</span>
-    <span class="dot" class:on={connected}>{connected ? 'Connectée' : 'Reconnexion…'}</span>
-  </div>
-  <pre bind:this={out} onscroll={() => (stick = out.scrollTop + out.clientHeight >= out.scrollHeight - 24)}>{#each lines as l}<span class={kind(l)}>{l}
-</span>{:else}<span class="sys">Rien pour l'instant. Démarre le serveur pour voir ses messages ici.</span>{/each}</pre>
-  <form onsubmit={send}>
-    <span class="prompt">&gt;</span>
-    <input bind:value={cmd} placeholder={server.status === 'running' ? 'Commande (ex. say Salut)' : 'Le serveur doit tourner pour recevoir des commandes'} disabled={server.status !== 'running' && server.status !== 'starting'} spellcheck="false" autocomplete="off" />
-  </form>
-</section>
-
-<footer>
-  {#if confirmDelete}
-    <span class="warn">Supprimer « {server.name} » et tous ses fichiers ? C'est définitif.</span>
-    <button class="btn" onclick={() => (confirmDelete = false)}>Annuler</button>
-    <button class="btn danger" onclick={() => ondelete(server)}><Trash2 size={14} /> Supprimer définitivement</button>
-  {:else}
-    <button class="btn danger" onclick={() => (confirmDelete = true)}><Trash2 size={14} /> Supprimer le serveur</button>
-  {/if}
-</footer>
+<div id="page" role="tabpanel" aria-labelledby="tab-{tab}">
+  {#key server.id + tab}
+    <div class="page">
+      {#if tab === 'console'}
+        <ServerConsole {conn} {server} {address} />
+      {:else if tab === 'general'}
+        <ServerGeneral {conn} {server} {ondelete} />
+      {:else if tab === 'network'}
+        <ServerNetwork {conn} {server} {address} />
+      {:else if tab === 'version'}
+        <ServerVersion {server} />
+      {:else if tab === 'fivem'}
+        <ServerFivem {server} {address} />
+      {:else if tab === 'properties'}
+        <ServerProperties />
+      {:else if tab === 'players'}
+        <ServerSoon icon={Users} title="Joueurs" text={mc ? 'Voir qui est connecté, expulser, bannir, donner les droits d\'opérateur et gérer la liste blanche.' : 'Voir qui est connecté, expulser et bannir. En attendant, txAdmin le fait déjà.'} version="v0.5" />
+      {:else if tab === 'files'}
+        <ServerSoon icon={FolderOpen} title="Fichiers" text="Parcourir les fichiers du serveur, modifier les configurations, envoyer et télécharger." version="v0.4" />
+      {:else}
+        <ServerSoon icon={Archive} title="Sauvegardes" text="Sauvegardes à la main ou planifiées, restauration en un clic, nombre de copies à garder." version="v0.4" />
+      {/if}
+    </div>
+  {/key}
+</div>
 
 <style>
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
@@ -122,23 +104,19 @@
   .st.running { color: var(--ok); } .st.error { color: var(--err); }
   .st.starting, .st.installing, .st.stopping { color: var(--warn); }
   .actions { display: flex; gap: 6px; }
-  .facts { display: flex; flex-wrap: wrap; gap: 32px; padding: 0 2px 20px; }
-  .facts div { display: grid; gap: 2px; }
-  .facts span { color: var(--muted); font-size: 0.85rem; }
-  .facts strong { font-size: 1.125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .facts small { color: var(--muted); }
-  .facts a { color: var(--primary); display: inline-flex; gap: 4px; align-items: center; font-weight: 600; text-decoration: none; }
-  .console { display: grid; grid-template-rows: auto 1fr auto; height: min(62vh, 640px); border-radius: var(--r); overflow: hidden; background: oklch(0.12 0.006 357); border: 1px solid var(--line); }
-  .bar { display: flex; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
-  .dot { display: inline-flex; align-items: center; gap: 6px; }
-  .dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
-  .dot.on::before { background: var(--ok); }
-  pre { margin: 0; padding: 12px 14px; overflow: auto; font: 12.5px/1.55 ui-monospace, 'SF Mono', Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: oklch(0.88 0.005 357); }
-  pre .sys { color: var(--primary); } pre .cmd { color: var(--ok); } pre .bad { color: var(--err); } pre .warn { color: var(--warn); }
-  .console form { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-top: 1px solid var(--line); }
-  .prompt { color: var(--primary); font-family: ui-monospace, monospace; }
-  .console input { flex: 1; height: 42px; border: 0; background: none; font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 13px; outline: none; }
-  .console input::placeholder { color: oklch(0.62 0.01 357); }
-  footer { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 20px; }
-  .warn { color: var(--err); margin-right: auto; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
+  .tabs button {
+    display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 12px; border: 0; background: none; cursor: pointer;
+    color: var(--muted); white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: 6px 6px 0 0;
+    transition: color 150ms, background 150ms, border-color 150ms;
+  }
+  .tabs button:hover { color: var(--ink); background: var(--surface); }
+  .tabs button[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--primary); }
+  .tabs button[aria-selected='true'] :global(svg) { color: var(--primary); }
+  .tabs button:focus-visible { outline-offset: -2px; }
+  .soon-tab { opacity: 0.7; }
+  .page { max-width: 820px; animation: in 220ms var(--ease); }
+  #page:has(:global(.console)) .page { max-width: none; }
+  @keyframes in { from { opacity: 0; translate: 0 4px; } }
+  @media (prefers-reduced-motion: reduce) { .page { animation: none; } }
 </style>

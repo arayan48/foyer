@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Flame, Server as ServerIcon, Settings as SettingsIcon } from 'lucide-svelte'
+  import { Flame, LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon } from 'lucide-svelte'
   import Connect from './lib/Connect.svelte'
   import ServerList from './lib/ServerList.svelte'
+  import Dashboard from './lib/Dashboard.svelte'
   import NewServer from './lib/NewServer.svelte'
   import ServerView from './lib/ServerView.svelte'
   import Update from './lib/Update.svelte'
@@ -13,7 +14,7 @@
   let servers = $state<Server[]>([])
   let sys = $state<Host | null>(null)
   let loading = $state(true)
-  let view = $state<{ name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'server'; id: string }>({ name: 'list' })
+  let view = $state<{ name: 'home' } | { name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'server'; id: string }>({ name: 'home' })
   let toast = $state('')
   let toastTimer: ReturnType<typeof setTimeout>
 
@@ -54,7 +55,7 @@
     saveConn(null)
     conn = null
     servers = []
-    view = { name: 'list' }
+    view = { name: 'home' }
   }
 
   async function act(s: Server, a: 'start' | 'stop' | 'restart') {
@@ -84,7 +85,10 @@
   <div class="shell">
     <nav>
       <div class="brand"><Flame size={18} /> Foyer</div>
-      <button class="nav-item" class:on={view.name !== 'settings'} aria-current={view.name !== 'settings' ? 'page' : undefined} onclick={() => (view = { name: 'list' })}>
+      <button class="nav-item" class:on={view.name === 'home'} aria-current={view.name === 'home' ? 'page' : undefined} onclick={() => (view = { name: 'home' })}>
+        <LayoutDashboard size={16} /> Tableau de bord
+      </button>
+      <button class="nav-item" class:on={view.name !== 'settings' && view.name !== 'home'} aria-current={view.name !== 'settings' && view.name !== 'home' ? 'page' : undefined} onclick={() => (view = { name: 'list' })}>
         <ServerIcon size={16} /> Serveurs
       </button>
       <button class="nav-item" class:on={view.name === 'settings'} aria-current={view.name === 'settings' ? 'page' : undefined} onclick={() => (view = { name: 'settings' })}>
@@ -105,6 +109,8 @@
     <main>
       {#if view.name === 'settings'}
         <SettingsView conn={conn} onlogout={logout} />
+      {:else if view.name === 'home'}
+        <Dashboard {servers} {sys} {loading} onnew={() => (view = { name: 'new' })} onopen={(s) => (view = { name: 'server', id: s.id })} onaction={act} />
       {:else if view.name === 'new'}
         <NewServer conn={conn} {servers} oncancel={() => (view = { name: 'list' })} oncreated={(s) => { refresh(); view = { name: 'server', id: s.id } }} />
       {:else if view.name === 'server' && current}

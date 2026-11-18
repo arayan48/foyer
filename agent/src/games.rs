@@ -163,3 +163,29 @@ async fn extract(file: &Path, to: &Path) -> Result<()> {
 fn client() -> reqwest::Client {
     reqwest::Client::builder().user_agent("foyer-agent").build().expect("client http")
 }
+
+/// Remplace ou ajoute des clés dans un texte `server.properties`, sans toucher au reste.
+pub fn set_props(text: &str, kv: &[(&str, &str)]) -> String {
+    let mut out: Vec<String> = Vec::new();
+    let mut seen = vec![false; kv.len()];
+    for line in text.lines() {
+        let key = line.split('=').next().unwrap_or("").trim();
+        match kv.iter().position(|(k, _)| *k == key && !line.trim_start().starts_with('#')) {
+            Some(i) => { out.push(format!("{}={}", kv[i].0, kv[i].1)); seen[i] = true; }
+            None => out.push(line.to_string()),
+        }
+    }
+    for (i, (k, v)) in kv.iter().enumerate() {
+        if !seen[i] { out.push(format!("{k}={v}")); }
+    }
+    out.join("\n") + "\n"
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn set_props_keeps_rest() {
+        let r = super::set_props("#c\nmotd=hi\nserver-port=1\n", &[("server-port", "2"), ("query.port", "2")]);
+        assert_eq!(r, "#c\nmotd=hi\nserver-port=2\nquery.port=2\n");
+    }
+}

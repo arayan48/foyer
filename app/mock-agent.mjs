@@ -2,9 +2,9 @@
 import http from 'node:http'
 
 const servers = [
-  { id: 'a1', name: 'Survie entre potes', game: 'minecraft', port: 25565, ram_mb: 4096, status: 'running', cpu: 23, mem: 2.6e9, admin_port: null },
-  { id: 'b2', name: 'RP Los Santos', game: 'fivem', port: 30120, ram_mb: 4096, status: 'stopped', cpu: 0, mem: 0, admin_port: 40120 },
-  { id: 'c3', name: 'Créatif', game: 'minecraft', port: 25566, ram_mb: 2048, status: 'installing', cpu: 0, mem: 0, admin_port: null },
+  { id: 'a1', name: 'Survie entre potes', game: 'minecraft', port: 25565, ram_mb: 4096, status: 'running', cpu: 23, mem: 2.6e9, admin_port: null, version: 'Paper 1.21.10', auto_start: false, auto_restart: true },
+  { id: 'b2', name: 'RP Los Santos', game: 'fivem', port: 30120, ram_mb: 4096, status: 'stopped', cpu: 0, mem: 0, admin_port: 40120, version: 'Build 17000', auto_start: true, auto_restart: true },
+  { id: 'c3', name: 'Créatif', game: 'minecraft', port: 25566, ram_mb: 2048, status: 'installing', cpu: 0, mem: 0, admin_port: null, auto_start: false, auto_restart: true },
 ]
 const sys = { name: 'WIN-RVSDEAUH9KJ', os: 'Windows Server 2025 Standard', cpu: 18, mem_used: 6.1e9, mem_total: 17.1e9, disk_free: 4.6e11, disk_total: 5e11 }
 
@@ -17,6 +17,22 @@ http.createServer((q, r) => {
   const json = (v) => (r.setHeader('Content-Type', 'application/json'), r.end(JSON.stringify(v)))
   if (q.url === '/api/system') return json({ ...sys, cpu: 10 + Math.random() * 20 })
   if (q.url === '/api/servers') return json(servers.map((s) => (s.status === 'running' ? { ...s, cpu: 15 + Math.random() * 20 } : s)))
+  const p = q.url.match(/^\/api\/servers\/(\w+)$/)
+  if (p && q.method === 'DELETE') {
+    const i = servers.findIndex((s) => s.id === p[1])
+    if (i < 0) return r.writeHead(404).end()
+    servers.splice(i, 1)
+    return r.writeHead(204).end()
+  }
+  if (p && q.method === 'PATCH') {
+    let body = ''
+    q.on('data', (c) => (body += c))
+    return q.on('end', () => {
+      const s = servers.find((s) => s.id === p[1])
+      Object.assign(s, JSON.parse(body))
+      json(s)
+    })
+  }
   const m = q.url.match(/^\/api\/servers\/(\w+)\/(start|stop|restart)$/)
   if (m) {
     const s = servers.find((s) => s.id === m[1])

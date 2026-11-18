@@ -16,7 +16,7 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use sysinfo::{Disks, Pid, ProcessesToUpdate, System};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
@@ -31,6 +31,12 @@ struct Server {
     game: Game,
     port: u16,
     ram_mb: u32,
+    /// démarre quand l'agent démarre (donc au boot)
+    #[serde(default)]
+    auto_start: bool,
+    /// relance après un crash, 3 essais max par fenêtre de 10 min
+    #[serde(default)]
+    auto_restart: bool,
 }
 
 #[derive(Clone, Copy, Serialize, PartialEq)]
@@ -52,11 +58,12 @@ struct Live {
     tx: broadcast::Sender<String>,
     cpu: f32,
     mem: u64,
+    crashes: VecDeque<Instant>,
 }
 
 impl Live {
     fn new(status: Status) -> Self {
-        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0 }
+        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0, crashes: VecDeque::new() }
     }
     fn push(&mut self, line: String) {
         if self.log.len() >= LOG_LINES {
@@ -108,12 +115,18 @@ async fn main() -> Result<()> {
     let app = Arc::new(App { data: data.clone(), token, servers: Mutex::new(servers), live: Mutex::new(live), host: Default::default() });
 
     tokio::spawn(stats_loop(app.clone()));
+    let auto: Vec<String> = app.servers.lock().await.iter().filter(|s| s.auto_start).map(|s| s.id.clone()).collect();
+    for id in auto {
+        if let Err(e) = start(&app, &id).await {
+            eprintln!("démarrage auto de {id} : {e:#}");
+        }
+    }
 
     let api = Router::new()
         .route("/api/system", get(system))
         .route("/api/shutdown", post(shutdown))
         .route("/api/servers", get(list).post(create))
-        .route("/api/servers/{id}", axum::routing::delete(remove))
+        .route("/api/servers/{id}", axum::routing::delete(remove).patch(update))
         .route("/api/servers/{id}/{action}", post(action))
         .route("/api/servers/{id}/console", get(console))
         .layer(middleware::from_fn_with_state(app.clone(), auth))
@@ -215,7 +228,7 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
         return bad("Port déjà utilisé par un autre serveur");
     }
     let id: String = (0..8).map(|_| format!("{:x}", rand::random::<u8>() % 16)).collect();
-    let s = Server { id: id.clone(), name, game: n.game, port, ram_mb };
+    let s = Server { id: id.clone(), name, game: n.game, port, ram_mb, auto_start: false, auto_restart: true };
     servers.push(s.clone());
     save(&app, &servers).await;
     drop(servers);
@@ -248,6 +261,66 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     Ok(Json(s))
 }
 
+#[derive(Deserialize)]
+struct Patch {
+    name: Option<String>,
+    port: Option<u16>,
+    ram_mb: Option<u32>,
+    auto_start: Option<bool>,
+    auto_restart: Option<bool>,
+}
+
+/// Modifie un serveur. Port et RAM servent au prochain démarrage.
+async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch>) -> Result<Json<Server>, (StatusCode, String)> {
+    let bad = |m: &str| Err((StatusCode::BAD_REQUEST, m.to_string()));
+    let mut servers = app.servers.lock().await;
+    let Some(i) = servers.iter().position(|s| s.id == id) else { return Err((StatusCode::NOT_FOUND, "serveur inconnu".into())) };
+    let old = servers[i].clone();
+    let mut s = old.clone();
+    if let Some(name) = p.name {
+        let name = name.trim().to_string();
+        if name.is_empty() || name.len() > 60 {
+            return bad("Nom vide ou trop long");
+        }
+        s.name = name;
+    }
+    if let Some(ram) = p.ram_mb {
+        s.ram_mb = ram.clamp(512, 65536);
+    }
+    s.auto_start = p.auto_start.unwrap_or(s.auto_start);
+    s.auto_restart = p.auto_restart.unwrap_or(s.auto_restart);
+    if let Some(port) = p.port.filter(|&p| p != old.port) {
+        if s.game != Game::Minecraft {
+            return bad("Le port FiveM se règle dans txAdmin");
+        }
+        if port < 1024 {
+            return bad("Port trop bas (minimum 1024)");
+        }
+        let used: Vec<u16> = servers.iter().filter(|o| o.id != id).flat_map(|o| o.game.ports(o.port)).map(|p| p.0).collect();
+        if s.game.ports(port).iter().any(|p| used.contains(&p.0)) {
+            return bad("Port déjà utilisé par un autre serveur");
+        }
+        let st = app.live.lock().await.get(&id).map(|l| l.status);
+        if !matches!(st, Some(Status::Stopped | Status::Error)) {
+            return bad("Arrête le serveur avant de changer le port");
+        }
+        let props = app.data.join("servers").join(&id).join("server.properties");
+        let text = tokio::fs::read_to_string(&props).await.unwrap_or_default();
+        if let Err(e) = tokio::fs::write(&props, games::set_props(&text, &[("server-port", &port.to_string()), ("query.port", &port.to_string())])).await {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("server.properties : {e}")));
+        }
+        s.port = port;
+    }
+    servers[i] = s.clone();
+    save(&app, &servers).await;
+    drop(servers);
+    if s.port != old.port {
+        firewall(&old, false).await;
+        firewall(&s, true).await;
+    }
+    Ok(Json(s))
+}
+
 async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> StatusCode {
     stop(&app, &id).await;
     let mut servers = app.servers.lock().await;
@@ -272,7 +345,13 @@ async fn action(State(app): S, UrlPath((id, action)): UrlPath<(String, String)>)
     r.map(|_| StatusCode::NO_CONTENT).map_err(|e| (StatusCode::CONFLICT, format!("{e:#}")))
 }
 
-async fn start(app: &Arc<App>, id: &str) -> Result<()> {
+fn start(app: &Arc<App>, id: &str) -> futures_util::future::BoxFuture<'static, Result<()>> {
+    // boxé : start est rappelé depuis sa propre tâche de surveillance (redémarrage auto)
+    let (app, id) = (app.clone(), id.to_string());
+    Box::pin(async move { start_inner(&app, &id).await })
+}
+
+async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
     let s = app.servers.lock().await.iter().find(|s| s.id == id).cloned().ok_or_else(|| anyhow::anyhow!("serveur inconnu"))?;
     {
         let live = app.live.lock().await;
@@ -321,8 +400,10 @@ async fn start(app: &Arc<App>, id: &str) -> Result<()> {
     let id = id.to_string();
     tokio::spawn(async move {
         let code = child.wait().await.ok().and_then(|c| c.code());
-        let mut live = app.live.lock().await;
-        if let Some(l) = live.get_mut(&id) {
+        let auto = app.servers.lock().await.iter().find(|s| s.id == id).is_some_and(|s| s.auto_restart);
+        let retry = {
+            let mut live = app.live.lock().await;
+            let Some(l) = live.get_mut(&id) else { return };
             let crashed = l.status != Status::Stopping;
             l.status = if crashed { Status::Error } else { Status::Stopped };
             l.stdin = None;
@@ -330,9 +411,43 @@ async fn start(app: &Arc<App>, id: &str) -> Result<()> {
             l.cpu = 0.0;
             l.mem = 0;
             l.push(format!("[foyer] Processus terminé (code {code:?})"));
+            if !(crashed && auto) {
+                false
+            } else if should_retry(&mut l.crashes, Instant::now()) {
+                l.push(format!("[foyer] Crash : redémarrage automatique dans 5 s (essai {}/{MAX_CRASHES})", l.crashes.len()));
+                true
+            } else {
+                l.push(format!("[foyer] {MAX_CRASHES} crashs en 10 min : redémarrage automatique abandonné"));
+                false
+            }
+        };
+        if retry {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            // démarré ou supprimé à la main entre-temps : on ne touche à rien
+            if app.live.lock().await.get(&id).map(|l| l.status) != Some(Status::Error) {
+                return;
+            }
+            if let Err(e) = start(&app, &id).await {
+                if let Some(l) = app.live.lock().await.get_mut(&id) { l.push(format!("[foyer] Redémarrage raté : {e:#}")) }
+            }
         }
     });
     Ok(())
+}
+
+const MAX_CRASHES: usize = 3;
+const CRASH_WINDOW: Duration = Duration::from_secs(600);
+
+/// Note un crash ; vrai s'il en reste moins de MAX_CRASHES dans la fenêtre.
+fn should_retry(crashes: &mut VecDeque<Instant>, now: Instant) -> bool {
+    while crashes.front().is_some_and(|t| now.duration_since(*t) > CRASH_WINDOW) {
+        crashes.pop_front();
+    }
+    if crashes.len() >= MAX_CRASHES {
+        return false;
+    }
+    crashes.push_back(now);
+    true
 }
 
 async fn stop(app: &Arc<App>, id: &str) {
@@ -483,5 +598,28 @@ async fn firewall(s: &Server, open: bool) {
             }
             let _ = c.stdout(Stdio::null()).stderr(Stdio::null()).status().await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_limit() {
+        let mut c = VecDeque::new();
+        let t = Instant::now();
+        assert!(should_retry(&mut c, t));
+        assert!(should_retry(&mut c, t));
+        assert!(should_retry(&mut c, t));
+        assert!(!should_retry(&mut c, t + Duration::from_secs(60)));
+        // après 10 min les vieux crashs ne comptent plus
+        assert!(should_retry(&mut c, t + Duration::from_secs(601)));
+    }
+
+    #[test]
+    fn old_servers_json_loads() {
+        let s: Server = serde_json::from_str(r#"{"id":"a","name":"x","game":"minecraft","port":25565,"ram_mb":1024}"#).unwrap();
+        assert!(!s.auto_start && !s.auto_restart);
     }
 }

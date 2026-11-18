@@ -67,3 +67,32 @@ button, input, select { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }
+
+/* Pages de réglages : cartes, lignes, interrupteurs */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.card + .card { margin-top: 16px; }
+.card-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; }
+.card-head > :global(svg), .card-head > svg { color: var(--primary); flex: none; margin-top: 2px; }
+.card-head h2 { font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.card-head p { color: var(--muted); font-size: 0.89rem; margin-top: 2px; }
+.row { display: grid; grid-template-columns: 1fr minmax(0, 260px); gap: 8px 24px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line); }
+.row.wide { grid-template-columns: 1fr; }
+.row > div:first-child { display: grid; gap: 2px; }
+.row strong { font-weight: 500; }
+.row small { color: var(--muted); font-size: 0.85rem; }
+.row .val { justify-self: end; font-variant-numeric: tabular-nums; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.row:has(:disabled) strong { color: var(--muted); }
+.soon { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+select.input { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: right 14px center, right 9px center; background-size: 5px 5px; background-repeat: no-repeat; cursor: pointer; }
+.input:disabled, select.input:disabled { opacity: 0.5; cursor: not-allowed; }
+.switch { appearance: none; width: 38px; height: 22px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); position: relative; cursor: pointer; justify-self: end; margin: 0; transition: background 150ms var(--ease), border-color 150ms; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: translate 180ms var(--ease), background 150ms; }
+.switch:checked { background: var(--primary); border-color: transparent; }
+.switch:checked::after { translate: 16px 0; background: var(--primary-ink); }
+.switch:hover:not(:disabled) { border-color: oklch(0.42 0.012 357); }
+.switch:disabled { opacity: 0.45; cursor: not-allowed; }
+input[type='range'] { accent-color: var(--primary); width: 100%; }
+.savebar { position: sticky; bottom: 0; z-index: var(--z-sticky); display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 16px; padding: 12px 0; background: var(--bg); border-top: 1px solid var(--line); }
+.savebar .msg { margin-right: auto; color: var(--muted); }
+.savebar .msg.err { color: var(--err); }
+@media (max-width: 700px) { .row { grid-template-columns: 1fr; } .row .val, .switch { justify-self: start; } }
