@@ -1,6 +1,7 @@
 <script lang="ts">
   import { IdCard, Cpu, Power, TriangleAlert, Trash2 } from 'lucide-svelte'
   import SaveBar from './SaveBar.svelte'
+  import SubPages from './SubPages.svelte'
   import { call, patchServer, type Conn, type Host, type Server } from './api'
 
   let { conn, server, ondelete }: { conn: Conn; server: Server; ondelete: (s: Server) => void } = $props()
@@ -16,7 +17,7 @@
     { id: 'server', label: 'Serveur', icon: IdCard },
     { id: 'resources', label: 'Ressources', icon: Cpu },
     { id: 'startup', label: 'Démarrage', icon: Power },
-    { id: 'danger', label: 'Zone sensible', icon: TriangleAlert },
+    { id: 'danger', label: 'Zone sensible', icon: TriangleAlert, danger: true },
   ]
   let page = $state('server')
   // cœurs logiques de la machine, pour la grille des cœurs
@@ -39,16 +40,7 @@
   }
 </script>
 
-<div class="layout">
-  <nav aria-label="Réglages généraux">
-    {#each pages as p (p.id)}
-      <button class:danger-link={p.id === 'danger'} aria-current={page === p.id ? 'page' : undefined} onclick={() => { page = p.id; confirmDelete = false }}>
-        <p.icon size={16} />{p.label}
-      </button>
-    {/each}
-  </nav>
-
-  <div class="content">
+<SubPages {pages} bind:page label="Réglages généraux" onselect={() => (confirmDelete = false)}>
     {#if page === 'server'}
       <h2>Serveur</h2>
       <p class="lead">Comment ce serveur s'affiche dans Foyer.</p>
@@ -133,29 +125,11 @@
         </div>
       </div>
     {/if}
-  </div>
-</div>
+</SubPages>
 
 <SaveBar {dirty} {busy} {error} onsave={save} onreset={() => { f = { ...saved, cores: [...saved.cores] }; error = '' }} />
 
 <style>
-  .layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 32px; align-items: start; }
-  nav { display: grid; gap: 2px; position: sticky; top: 0; }
-  nav button {
-    display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 8px;
-    background: none; color: var(--muted); text-align: left; cursor: pointer; transition: background 120ms var(--ease), color 120ms;
-  }
-  nav button:hover { background: var(--surface); color: var(--ink); }
-  nav button[aria-current='page'] { background: var(--surface-2); color: var(--ink); }
-  nav button[aria-current='page'] :global(svg) { color: var(--primary); }
-  nav .danger-link { margin-top: 12px; }
-  nav .danger-link[aria-current='page'] :global(svg) { color: var(--err); }
-
-  .content h2 { font-size: 1.125rem; }
-  .lead { color: var(--muted); margin: 2px 0 18px; }
-  h3 { font-size: 0.89rem; font-weight: 500; color: var(--muted); margin: 22px 0 8px; }
-  h3:first-of-type { margin-top: 0; }
-
   .val input[type='range'] { width: 150px; }
   .num { min-width: 46px; text-align: right; color: var(--ink); font-weight: 500; }
 
@@ -173,9 +147,4 @@
 
   .danger { border-color: color-mix(in oklch, var(--err) 40%, var(--line)); }
 
-  @media (max-width: 760px) {
-    .layout { grid-template-columns: 1fr; gap: 16px; }
-    nav { position: static; display: flex; overflow-x: auto; }
-    nav .danger-link { margin-top: 0; }
-  }
 </style>
