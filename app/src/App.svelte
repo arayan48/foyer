@@ -8,6 +8,8 @@
   import Update from './lib/Update.svelte'
   import SettingsView from './lib/SettingsView.svelte'
   import { applySettings, loadSettings } from './lib/settings'
+  import { isTauri } from '@tauri-apps/api/core'
+  import { openUrl } from '@tauri-apps/plugin-opener'
   import { call, loadConn, saveConn, host, bytes, AuthError, type Conn, type Host, type Server } from './lib/api'
 
   let conn = $state<Conn | null>(loadConn())
@@ -77,7 +79,17 @@
     }
     refresh()
   }
+
+  // la webview Tauri ignore target="_blank" : on ouvre les liens externes dans le navigateur
+  function openExternal(e: MouseEvent) {
+    const a = (e.target as Element).closest?.('a[target="_blank"]') as HTMLAnchorElement | null
+    if (!a || !isTauri()) return
+    e.preventDefault()
+    openUrl(a.href)
+  }
 </script>
+
+<svelte:document onclick={openExternal} />
 
 {#if !conn}
   <Connect onconnect={connect} />
@@ -96,8 +108,6 @@
       </button>
       <div class="machine">
         {#if sys}
-          <p class="mname">{sys.name || address}</p>
-          <p class="mos">{sys.os}</p>
           <dl>
             <dt>CPU</dt><dd><span class="bar"><span style:width="{sys.cpu}%"></span></span>{Math.round(sys.cpu)} %</dd>
             <dt>RAM</dt><dd><span class="bar"><span style:width="{(sys.mem_used / sys.mem_total) * 100}%"></span></span>{bytes(sys.mem_used)}</dd>
@@ -108,7 +118,7 @@
     </nav>
     <main>
       {#if view.name === 'settings'}
-        <SettingsView conn={conn} onlogout={logout} />
+        <SettingsView conn={conn} {sys} onlogout={logout} />
       {:else if view.name === 'home'}
         <Dashboard {servers} {sys} {loading} onnew={() => (view = { name: 'new' })} onopen={(s) => (view = { name: 'server', id: s.id })} onaction={act} />
       {:else if view.name === 'new'}
@@ -135,8 +145,6 @@
   .nav-item:hover { background: var(--surface); color: var(--ink); }
   .nav-item.on { background: var(--surface); color: var(--ink); }
   .machine { margin-top: auto; display: grid; gap: 4px; }
-  .mname { font-weight: 600; padding: 0 10px; }
-  .mos { color: var(--muted); font-size: 0.79rem; padding: 0 10px; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; margin: 10px 10px 12px; font-size: 0.79rem; }
   dt { color: var(--muted); }
   dd { margin: 0; display: grid; gap: 3px; font-variant-numeric: tabular-nums; color: var(--muted); }

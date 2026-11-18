@@ -60,9 +60,9 @@
     "semantic_hash": ""
   },
   "app/src-tauri/src/lib.rs": {
-    "mtime": 1795043245.3607507,
-    "seen": 1795043863.0750022,
-    "ast_hash": "ac25fc0662ad69f1688be7d8e72379e7",
+    "mtime": 1795044092.0507858,
+    "seen": 1795044171.9226,
+    "ast_hash": "8ad912cfb4008240f9e61a389b116492",
     "semantic_hash": ""
   },
   "app/src-tauri/src/main.rs": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "ROADMAP.md": {
-    "mtime": 1795043516.8923483,
-    "seen": 1795043863.07502,
-    "ast_hash": "8651458cf68c3cb03a318b12e6b7432e",
+    "mtime": 1795044021.215046,
+    "seen": 1795044171.9226182,
+    "ast_hash": "552024e2804f3eb55cbb04a16c0b1966",
     "semantic_hash": ""
   },
   "app/index.html": {

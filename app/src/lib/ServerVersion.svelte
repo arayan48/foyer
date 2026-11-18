@@ -13,6 +13,10 @@
       <div><strong>Installé</strong><small>Paper, dernière version stable au moment de l'installation.</small></div>
       <div class="val">{server.version ?? 'Paper'}</div>
     </div>
+    <div class="row">
+      <div><strong>Java</strong><small>Choisi à la création selon la version du jeu.</small></div>
+      <div class="val">Java {server.java ?? 25}</div>
+    </div>
     <label class="row">
       <div><strong>Type <span class="soon">Bientôt</span></strong><small>Paper pour les plugins, Fabric ou Forge pour les mods.</small></div>
       <select class="input" disabled><option>Paper</option><option>Vanilla</option><option>Fabric</option><option>Forge</option></select>
@@ -28,6 +32,10 @@
     <div class="row">
       <div><strong>Build installé</strong><small>Build « recommended » au moment de l'installation.</small></div>
       <div class="val">{server.version ?? 'Recommended'}</div>
+    </div>
+    <div class="row">
+      <div><strong>Mode</strong><small>{server.txadmin === false ? 'FXServer lancé directement avec server-data/server.cfg.' : 'Géré par txAdmin.'}</small></div>
+      <div class="val">{server.txadmin === false ? ({ esx: 'ESX Legacy', qbcore: 'QBCore' } as Record<string, string>)[server.framework ?? ''] ?? 'Vanilla' : 'txAdmin'}</div>
     </div>
     <label class="row">
       <div><strong>Canal <span class="soon">Bientôt</span></strong><small>« Recommended » est le plus sûr ; « Latest » a les nouveautés.</small></div>

@@ -3,10 +3,15 @@
   "1": "App.svelte",
   "9": "SettingsView.svelte",
   "14": "lib.rs",
-  "29": "ServerView.svelte",
+  "29": "ServerNetwork.svelte",
   "30": "agent.rs",
   "31": "create",
   "32": "App",
   "33": "tls",
-  "34": "Status"
+  "34": "Status",
+  "35": "api.ts",
+  "36": "ServerView.svelte",
+  "37": "Connect.svelte",
+  "38": "ServerConsole.svelte",
+  "39": "NewServer.svelte"
 }

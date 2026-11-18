@@ -9,11 +9,23 @@ export interface Server {
   ram_mb: number
   auto_start: boolean
   auto_restart: boolean
+  cpu_limit?: number
+  cores?: number[]
+  ram_cap?: boolean
   status: Status
   cpu: number
   mem: number
   admin_port: number | null
   version?: string
+  java?: number
+  txadmin?: boolean
+  framework?: 'vanilla' | 'esx' | 'qbcore' | null
+}
+
+export interface Catalog {
+  minecraft: { id: string; java: number }[]
+  java: number[]
+  fivem: { id: string; build: string }[]
 }
 
 export interface Host {
@@ -24,6 +36,13 @@ export interface Host {
   mem_total: number
   disk_free: number
   disk_total: number
+  cores?: number
+  threads?: number
+  cpu_model?: string
+  arch?: string
+  kernel?: string
+  uptime?: number
+  agent?: string
 }
 
 export interface Conn {
@@ -138,7 +157,7 @@ export function host(c: Conn) {
 
 export const GAMES: Record<Game, { label: string; hint: string; port: number }> = {
   minecraft: { label: 'Minecraft', hint: 'Java Edition, serveur Paper', port: 25565 },
-  fivem: { label: 'FiveM', hint: 'GTA V roleplay, avec txAdmin', port: 30120 },
+  fivem: { label: 'FiveM', hint: 'GTA V roleplay, ESX ou QBCore', port: 30120 },
 }
 
 export const STATUS: Record<Status, string> = {

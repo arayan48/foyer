@@ -1,6 +1,7 @@
 //! Foyer agent : installe, lance et surveille des serveurs de jeu.
 //! API HTTP + WebSocket protégée par un jeton, à garder sur le réseau local.
 mod games;
+mod limits;
 
 use anyhow::Result;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -37,6 +38,37 @@ struct Server {
     /// relance après un crash, 3 essais max par fenêtre de 10 min
     #[serde(default)]
     auto_restart: bool,
+    /// part max du processeur de la machine en %, 0 = pas de limite
+    #[serde(default)]
+    cpu_limit: u8,
+    /// cœurs autorisés, vide = tous
+    #[serde(default)]
+    cores: Vec<u16>,
+    /// bloque la mémoire du processus autour de ram_mb
+    #[serde(default)]
+    ram_cap: bool,
+    /// version installée (« Paper 1.21.11 », « Build 38435 »)
+    #[serde(default)]
+    version: Option<String>,
+    /// version de Java (Minecraft), 25 pour les anciens serveurs
+    #[serde(default = "java_default")]
+    java: u8,
+    /// FiveM lancé via txAdmin, sinon directement avec server.cfg
+    #[serde(default = "games::yes")]
+    txadmin: bool,
+    /// FiveM sans txAdmin : vanilla, esx ou qbcore
+    #[serde(default)]
+    framework: Option<String>,
+}
+
+fn java_default() -> u8 {
+    25
+}
+
+impl Server {
+    fn ports(&self) -> Vec<(u16, bool, bool)> {
+        self.game.ports(self.port, self.txadmin)
+    }
 }
 
 #[derive(Clone, Copy, Serialize, PartialEq)]
@@ -91,6 +123,13 @@ struct HostStats {
     mem_total: u64,
     disk_free: u64,
     disk_total: u64,
+    cores: usize,
+    threads: usize,
+    cpu_model: String,
+    arch: String,
+    kernel: String,
+    uptime: u64,
+    agent: String,
 }
 
 type S = State<Arc<App>>;
@@ -125,6 +164,7 @@ async fn main() -> Result<()> {
     let api = Router::new()
         .route("/api/system", get(system))
         .route("/api/shutdown", post(shutdown))
+        .route("/api/catalog", get(catalog))
         .route("/api/servers", get(list).post(create))
         .route("/api/servers/{id}", axum::routing::delete(remove).patch(update))
         .route("/api/servers/{id}/{action}", post(action))
@@ -210,7 +250,7 @@ async fn list(State(app): S) -> Json<Vec<ServerView>> {
             status: l.map(|l| l.status).unwrap_or(Status::Stopped),
             cpu: l.map(|l| l.cpu).unwrap_or(0.0),
             mem: l.map(|l| l.mem).unwrap_or(0),
-            admin_port: (s.game == Game::Fivem).then(|| games::txadmin_port(s.port)),
+            admin_port: (s.game == Game::Fivem && s.txadmin).then(|| games::txadmin_port(s.port)),
             server: s,
         }
     }).collect())
@@ -224,6 +264,12 @@ struct NewServer {
     ram_mb: Option<u32>,
     #[serde(default)]
     eula: bool,
+    #[serde(flatten)]
+    setup: games::Setup,
+}
+
+async fn catalog() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    games::catalog().await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:#}")))
 }
 
 async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>, (StatusCode, String)> {
@@ -238,12 +284,22 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     let port = n.port.unwrap_or(n.game.default_port());
     let ram_mb = n.ram_mb.unwrap_or(4096).clamp(512, 65536);
     let mut servers = app.servers.lock().await;
-    let used: Vec<u16> = servers.iter().flat_map(|s| s.game.ports(s.port)).map(|p| p.0).collect();
-    if n.game.ports(port).iter().any(|p| used.contains(&p.0)) {
+    let used: Vec<u16> = servers.iter().flat_map(|s| s.ports()).map(|p| p.0).collect();
+    if n.game.ports(port, n.setup.txadmin).iter().any(|p| used.contains(&p.0)) {
         return bad("Port déjà utilisé par un autre serveur");
     }
     let id: String = (0..8).map(|_| format!("{:x}", rand::random::<u8>() % 16)).collect();
-    let s = Server { id: id.clone(), name, game: n.game, port, ram_mb, auto_start: false, auto_restart: true };
+    if n.setup.java.is_some_and(|j| !games::JAVAS.contains(&j)) {
+        return bad("Version de Java non proposée");
+    }
+    let fivem = n.game == Game::Fivem;
+    let txadmin = !fivem || n.setup.txadmin;
+    let framework = (fivem && !txadmin).then(|| n.setup.framework.clone().unwrap_or_else(|| "vanilla".into()));
+    if framework.as_deref().is_some_and(|f| !["vanilla", "esx", "qbcore"].contains(&f)) {
+        return bad("Framework inconnu");
+    }
+    let java = n.setup.java.unwrap_or_else(|| n.setup.version.as_deref().map_or(25, games::java_for));
+    let s = Server { id: id.clone(), name, game: n.game, port, ram_mb, auto_start: false, auto_restart: true, cpu_limit: 0, cores: vec![], ram_cap: false, version: None, java, txadmin, framework };
     servers.push(s.clone());
     save(&app, &servers).await;
     drop(servers);
@@ -258,14 +314,20 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
             let id = s2.id.clone();
             tokio::spawn(async move { if let Some(l) = app3.live.lock().await.get_mut(&id) { l.push(format!("[foyer] {m}")) } });
         };
-        let r = games::install(s2.game, &app2.data, &dir, s2.port, &log).await;
-        if r.is_ok() {
+        let setup = games::Setup { java: Some(s2.java), txadmin: s2.txadmin, framework: s2.framework.clone(), ..n.setup };
+        let r = games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await;
+        if let Ok(v) = &r {
             firewall(&s2, true).await;
+            let mut servers = app2.servers.lock().await;
+            if let Some(x) = servers.iter_mut().find(|x| x.id == s2.id) {
+                x.version = Some(v.clone());
+            }
+            save(&app2, &servers).await;
         }
         let mut live = app2.live.lock().await;
         if let Some(l) = live.get_mut(&s2.id) {
             match r {
-                Ok(()) => l.status = Status::Stopped,
+                Ok(_) => l.status = Status::Stopped,
                 Err(e) => {
                     l.status = Status::Error;
                     l.push(format!("[foyer] Erreur : {e:#}"));
@@ -283,6 +345,9 @@ struct Patch {
     ram_mb: Option<u32>,
     auto_start: Option<bool>,
     auto_restart: Option<bool>,
+    cpu_limit: Option<u8>,
+    cores: Option<Vec<u16>>,
+    ram_cap: Option<bool>,
 }
 
 /// Modifie un serveur. Port et RAM servent au prochain démarrage.
@@ -304,6 +369,21 @@ async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch
     }
     s.auto_start = p.auto_start.unwrap_or(s.auto_start);
     s.auto_restart = p.auto_restart.unwrap_or(s.auto_restart);
+    if let Some(c) = p.cpu_limit {
+        if c != 0 && !(5..=100).contains(&c) {
+            return bad("Limite processeur entre 5 et 100 %");
+        }
+        s.cpu_limit = c;
+    }
+    if let Some(mut cores) = p.cores {
+        cores.sort_unstable();
+        cores.dedup();
+        if cores.iter().any(|&c| c as usize >= limits::cores().min(64)) {
+            return bad("Cœur inexistant sur cette machine");
+        }
+        s.cores = cores;
+    }
+    s.ram_cap = p.ram_cap.unwrap_or(s.ram_cap);
     if let Some(port) = p.port.filter(|&p| p != old.port) {
         if s.game != Game::Minecraft {
             return bad("Le port FiveM se règle dans txAdmin");
@@ -311,8 +391,8 @@ async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch
         if port < 1024 {
             return bad("Port trop bas (minimum 1024)");
         }
-        let used: Vec<u16> = servers.iter().filter(|o| o.id != id).flat_map(|o| o.game.ports(o.port)).map(|p| p.0).collect();
-        if s.game.ports(port).iter().any(|p| used.contains(&p.0)) {
+        let used: Vec<u16> = servers.iter().filter(|o| o.id != id).flat_map(|o| o.ports()).map(|p| p.0).collect();
+        if s.game.ports(port, s.txadmin).iter().any(|p| used.contains(&p.0)) {
             return bad("Port déjà utilisé par un autre serveur");
         }
         let st = app.live.lock().await.get(&id).map(|l| l.status);
@@ -347,6 +427,8 @@ async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> StatusCode {
     firewall(&s, false).await;
     // shortcut: suppression définitive du dossier, pas de corbeille ; ajouter une sauvegarde avant si besoin
     let _ = tokio::fs::remove_dir_all(app.data.join("servers").join(&id)).await;
+    #[cfg(target_os = "linux")]
+    limits::linux::remove(&id);
     StatusCode::NO_CONTENT
 }
 
@@ -376,15 +458,41 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
         }
     }
     let dir = app.data.join("servers").join(id);
-    let (exe, args) = games::command(s.game, &app.data, &dir, s.port, s.ram_mb).await?;
+    let (exe, args, cwd) = games::command(s.game, &app.data, &dir, s.port, s.ram_mb, s.java, s.txadmin).await?;
     let mut cmd = Command::new(&exe);
-    cmd.args(&args).current_dir(&dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(false);
+    cmd.args(&args).current_dir(&cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(false);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     #[cfg(unix)]
     cmd.process_group(0);
+    let lim = limits::Limits { cpu_percent: s.cpu_limit, cores: s.cores.clone(), mem_mb: s.ram_cap.then(|| s.game.mem_cap(s.ram_mb)) };
+    let mut warn = None;
+    #[cfg(target_os = "linux")]
+    let _procs = match limits::linux::prepare(id, &lim) {
+        Ok(f) => {
+            let f2 = f.try_clone()?;
+            // inscrit le processus dans son cgroup avant exec : ses enfants suivent
+            unsafe {
+                cmd.pre_exec(move || {
+                    use std::io::Write;
+                    (&f2).write_all(b"0")
+                });
+            }
+            Some(f)
+        }
+        Err(e) if lim.is_empty() => { let _ = e; None }
+        Err(e) => { warn = Some(e.to_string()); None }
+    };
     let mut child: Child = cmd.spawn()?;
     let pid = child.id();
+    #[cfg(windows)]
+    if !lim.is_empty() {
+        if let Some(h) = child.raw_handle() {
+            if let Err(e) = limits::windows::apply(h, &lim) {
+                warn = Some(e.to_string());
+            }
+        }
+    }
     {
         let mut live = app.live.lock().await;
         let l = live.get_mut(id).unwrap();
@@ -392,12 +500,20 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
         l.stdin = child.stdin.take();
         l.pid = pid;
         l.push(format!("[foyer] Démarrage : {}", exe.display()));
+        if let Some(w) = &warn {
+            l.push(format!("[foyer] Limites non appliquées : {w}"));
+        } else if !lim.is_empty() {
+            l.push(format!("[foyer] Limites : processeur {} %, cœurs {}, mémoire {}",
+                if lim.cpu_percent == 0 { 100 } else { lim.cpu_percent },
+                if lim.cores.is_empty() { "tous".into() } else { format!("{:?}", lim.cores) },
+                lim.mem_mb.map_or("libre".into(), |m| format!("{m} Mo"))));
+        }
     }
     for out in [child.stdout.take().map(|o| Box::new(o) as Box<dyn tokio::io::AsyncRead + Unpin + Send>),
                 child.stderr.take().map(|o| Box::new(o) as Box<dyn tokio::io::AsyncRead + Unpin + Send>)].into_iter().flatten() {
         let app = app.clone();
         let id = id.to_string();
-        let marker = s.game.ready_marker();
+        let marker = s.game.ready_marker(s.txadmin);
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -466,14 +582,14 @@ fn should_retry(crashes: &mut VecDeque<Instant>, now: Instant) -> bool {
 }
 
 async fn stop(app: &Arc<App>, id: &str) {
-    let game = app.servers.lock().await.iter().find(|s| s.id == id).map(|s| s.game);
+    let stop_cmd = app.servers.lock().await.iter().find(|s| s.id == id).and_then(|s| s.game.stop_command(s.txadmin));
     let pid = {
         let mut live = app.live.lock().await;
         let Some(l) = live.get_mut(id) else { return };
         let Some(pid) = l.pid else { return };
         l.status = Status::Stopping;
         l.push("[foyer] Arrêt…".into());
-        if let (Some(cmd), Some(stdin)) = (game.and_then(|g| g.stop_command()), l.stdin.as_mut()) {
+        if let (Some(cmd), Some(stdin)) = (stop_cmd, l.stdin.as_mut()) {
             let _ = stdin.write_all(format!("{cmd}\n").as_bytes()).await;
         }
         pid
@@ -483,7 +599,7 @@ async fn stop(app: &Arc<App>, id: &str) {
         if app.live.lock().await.get(id).map_or(true, |l| l.pid.is_none()) {
             return;
         }
-        if game.and_then(|g| g.stop_command()).is_none() {
+        if stop_cmd.is_none() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -552,6 +668,7 @@ async fn console_ws(app: Arc<App>, id: String, mut socket: WebSocket) {
 async fn stats_loop(app: Arc<App>) {
     let mut sys = System::new();
     let mut disks = Disks::new_with_refreshed_list();
+    sys.refresh_cpu_all(); // remplit le nom du processeur
     loop {
         sys.refresh_cpu_usage();
         sys.refresh_memory();
@@ -569,6 +686,13 @@ async fn stats_loop(app: Arc<App>) {
             mem_total: sys.total_memory(),
             disk_free: disk.map_or(0, |d| d.available_space()),
             disk_total: disk.map_or(0, |d| d.total_space()),
+            cores: sys.physical_core_count().unwrap_or(0),
+            threads: sys.cpus().len(),
+            cpu_model: sys.cpus().first().map(|c| c.brand().trim().to_string()).unwrap_or_default(),
+            arch: System::cpu_arch(),
+            kernel: System::kernel_version().unwrap_or_default(),
+            uptime: System::uptime(),
+            agent: env!("CARGO_PKG_VERSION").into(),
         };
         let mut live = app.live.lock().await;
         for l in live.values_mut() {
@@ -598,7 +722,7 @@ async fn firewall(s: &Server, open: bool) {
     if !cfg!(windows) {
         return; // shortcut: pare-feu Linux non géré (ufw/nftables varient), à ouvrir à la main
     }
-    for (port, tcp, udp) in s.game.ports(s.port) {
+    for (port, tcp, udp) in s.ports() {
         for (proto, on) in [("TCP", tcp), ("UDP", udp)] {
             if !on {
                 continue;

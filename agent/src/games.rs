@@ -24,27 +24,30 @@ impl Game {
     }
 
     /// Ports à ouvrir : (port, tcp, udp).
-    pub fn ports(self, port: u16) -> Vec<(u16, bool, bool)> {
+    pub fn ports(self, port: u16, txadmin: bool) -> Vec<(u16, bool, bool)> {
         match self {
             Game::Minecraft => vec![(port, true, false)],
             // 40120 = interface txAdmin (LAN seulement, ne jamais l'ouvrir sur la box)
-            Game::Fivem => vec![(port, true, true), (txadmin_port(port), true, false)],
+            Game::Fivem if txadmin => vec![(port, true, true), (txadmin_port(port), true, false)],
+            Game::Fivem => vec![(port, true, true)],
         }
     }
 
     /// Commande envoyée sur l'entrée standard pour un arrêt propre.
-    pub fn stop_command(self) -> Option<&'static str> {
+    pub fn stop_command(self, txadmin: bool) -> Option<&'static str> {
         match self {
             Game::Minecraft => Some("stop"),
-            Game::Fivem => None,
+            Game::Fivem if txadmin => None,
+            Game::Fivem => Some("quit"),
         }
     }
 
     /// Ligne de log qui veut dire « prêt ».
-    pub fn ready_marker(self) -> &'static str {
+    pub fn ready_marker(self, txadmin: bool) -> &'static str {
         match self {
             Game::Minecraft => "Done (",
-            Game::Fivem => "txAdmin",
+            Game::Fivem if txadmin => "txAdmin",
+            Game::Fivem => "Started resource",
         }
     }
 }
@@ -53,76 +56,237 @@ pub fn txadmin_port(port: u16) -> u16 {
     port + 10000
 }
 
-pub async fn install(game: Game, data: &Path, dir: &Path, port: u16, log: &impl Fn(String)) -> Result<()> {
+/// Choix faits à la création du serveur.
+#[derive(Deserialize, Default, Clone)]
+pub struct Setup {
+    /// Minecraft : version du jeu (« 1.21.11 »), vide = dernière stable.
+    /// FiveM : canal des artefacts (recommended, optional, latest).
+    pub version: Option<String>,
+    /// Version de Java pour Minecraft, vide = celle conseillée pour la version du jeu.
+    pub java: Option<u8>,
+    #[serde(default = "yes")]
+    pub txadmin: bool,
+    /// Sans txAdmin : vanilla, esx ou qbcore.
+    pub framework: Option<String>,
+    pub license_key: Option<String>,
+    pub max_players: Option<u16>,
+    /// Chaîne de connexion MySQL/MariaDB pour ESX et QBCore.
+    pub db_url: Option<String>,
+}
+
+pub fn yes() -> bool {
+    true
+}
+
+pub const JAVAS: [u8; 5] = [8, 11, 17, 21, 25];
+
+/// Java conseillé pour une version de Minecraft.
+pub fn java_for(mc: &str) -> u8 {
+    let n: Vec<u32> = mc.split('.').filter_map(|x| x.parse().ok()).collect();
+    match n.as_slice() {
+        [a, ..] if *a >= 26 => 25,
+        [1, m, ..] if *m >= 21 => 21,
+        [1, 20, p] if *p >= 5 => 21,
+        [1, m, ..] if *m >= 17 => 17,
+        _ => 8,
+    }
+}
+
+/// Versions proposées à la création : Minecraft (Paper stables) et builds FiveM.
+pub async fn catalog() -> Result<Value> {
+    let p: Value = get_json("https://fill.papermc.io/v3/projects/paper").await?;
+    let mc: Vec<Value> = p["versions"]
+        .as_object()
+        .map(|m| m.values().filter_map(|v| v.as_array()).flatten().filter_map(|x| x.as_str()).filter(|x| !x.contains('-')).collect::<Vec<_>>())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|v| serde_json::json!({ "id": v, "java": java_for(v) }))
+        .collect();
+    let os = if WIN { "win32" } else { "linux" };
+    let f: Value = get_json(&format!("https://changelogs-live.fivem.net/api/changelog/versions/{os}/server")).await.unwrap_or_default();
+    let fivem: Vec<Value> = ["recommended", "optional", "latest"]
+        .iter()
+        .filter_map(|c| f[c].as_str().map(|b| serde_json::json!({ "id": c, "build": b })))
+        .collect();
+    Ok(serde_json::json!({ "minecraft": mc, "java": JAVAS, "fivem": fivem }))
+}
+
+/// Installe le serveur et renvoie la version installée.
+pub async fn install(game: Game, data: &Path, dir: &Path, port: u16, name: &str, o: &Setup, log: &impl Fn(String)) -> Result<String> {
     tokio::fs::create_dir_all(dir).await?;
-    match game {
+    let label = match game {
         Game::Minecraft => {
-            java(data, log).await?;
-            log("Recherche de la dernière version de Paper…".into());
-            let p: Value = get_json("https://fill.papermc.io/v3/projects/paper").await?;
-            let version = p["versions"]
-                .as_object()
-                .and_then(|m| m.values().next())
-                .and_then(|v| v.as_array())
-                .and_then(|v| v.iter().filter_map(|x| x.as_str()).find(|x| !x.contains('-')))
-                .ok_or_else(|| anyhow!("aucune version Paper stable"))?
-                .to_string();
+            let version = match o.version.as_deref().filter(|v| !v.is_empty()) {
+                Some(v) => v.to_string(),
+                None => {
+                    log("Recherche de la dernière version de Paper…".into());
+                    let p: Value = get_json("https://fill.papermc.io/v3/projects/paper").await?;
+                    p["versions"]
+                        .as_object()
+                        .and_then(|m| m.values().next())
+                        .and_then(|v| v.as_array())
+                        .and_then(|v| v.iter().filter_map(|x| x.as_str()).find(|x| !x.contains('-')))
+                        .ok_or_else(|| anyhow!("aucune version Paper stable"))?
+                        .to_string()
+                }
+            };
+            if !version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-') {
+                bail!("version invalide");
+            }
+            java(data, o.java.unwrap_or_else(|| java_for(&version)), log).await?;
             let b: Value = get_json(&format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds/latest")).await?;
             let url = b["downloads"]["server:default"]["url"].as_str().ok_or_else(|| anyhow!("pas d'URL Paper"))?;
             log(format!("Téléchargement de Paper {version}…"));
             download(url, &dir.join("server.jar")).await?;
             tokio::fs::write(dir.join("eula.txt"), "eula=true\n").await?;
             tokio::fs::write(dir.join("server.properties"), format!("server-port={port}\nquery.port={port}\n")).await?;
+            format!("Paper {version}")
         }
         Game::Fivem => {
             let os = if WIN { "win32" } else { "linux" };
+            let channel = match o.version.as_deref() {
+                Some(c @ ("optional" | "latest")) => c,
+                _ => "recommended",
+            };
             let v: Value = get_json(&format!("https://changelogs-live.fivem.net/api/changelog/versions/{os}/server")).await?;
-            let url = v["recommended_download"].as_str().ok_or_else(|| anyhow!("pas d'URL FiveM"))?;
-            log(format!("Téléchargement de FiveM (build {})…", v["recommended"].as_str().unwrap_or("?")));
+            let url = v[format!("{channel}_download")].as_str().ok_or_else(|| anyhow!("pas d'URL FiveM"))?;
+            let build = v[channel].as_str().unwrap_or("?").to_string();
+            log(format!("Téléchargement de FiveM (build {build}, {channel})…"));
             let file = dir.join(if WIN { "fx.zip" } else { "fx.tar.xz" });
             download(url, &file).await?;
             log("Extraction…".into());
             extract(&file, &dir.join("artifacts")).await?;
             tokio::fs::remove_file(&file).await.ok();
+            if !o.txadmin {
+                server_data(dir, port, name, o, log).await?;
+            }
+            format!("Build {build}")
         }
-    }
+    };
     log("Installation terminée.".into());
+    Ok(label)
+}
+
+/// Sans txAdmin : ressources de base, framework choisi et server.cfg prêt à lancer.
+async fn server_data(dir: &Path, port: u16, name: &str, o: &Setup, log: &impl Fn(String)) -> Result<()> {
+    let key = o.license_key.as_deref().unwrap_or("").trim();
+    if !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        bail!("clé de licence invalide");
+    }
+    let clean = |s: &str| s.chars().filter(|c| !matches!(c, '"' | '\n' | '\r')).collect::<String>();
+    let sd = dir.join("server-data");
+    let res = sd.join("resources");
+    log("Téléchargement des ressources de base (cfx-server-data)…".into());
+    fetch_tree("https://github.com/citizenfx/cfx-server-data/archive/refs/heads/master.zip", &sd, dir).await?;
+    let fw = o.framework.as_deref().unwrap_or("vanilla");
+    let mut ensure = vec!["mapmanager", "chat", "spawnmanager", "sessionmanager", "hardcap"];
+    let mut extra = String::new();
+    if fw == "esx" || fw == "qbcore" {
+        log("Téléchargement d'oxmysql…".into());
+        fetch_tree("https://github.com/overextended/oxmysql/releases/latest/download/oxmysql.zip", &res.join("[ox]").join("oxmysql"), dir).await?;
+        let db = clean(o.db_url.as_deref().unwrap_or("mysql://root@localhost/fivem"));
+        extra += &format!("set mysql_connection_string \"{db}\"\n");
+        ensure.push("oxmysql");
+    }
+    match fw {
+        "esx" => {
+            let r: Value = get_json("https://api.github.com/repos/esx-framework/esx_core/releases/latest").await?;
+            let url = r["zipball_url"].as_str().ok_or_else(|| anyhow!("pas d'archive ESX"))?;
+            log(format!("Téléchargement d'ESX Legacy {}…", r["tag_name"].as_str().unwrap_or("")));
+            fetch_tree(url, &res.join("[esx]"), dir).await?;
+            ensure.push("[core]");
+            log("ESX : importe le fichier .sql du dossier resources/[esx] dans ta base avant le premier démarrage.".into());
+        }
+        "qbcore" => {
+            log("Téléchargement de QBCore…".into());
+            fetch_tree("https://github.com/qbcore-framework/qb-core/archive/refs/heads/main.zip", &res.join("[qb]").join("qb-core"), dir).await?;
+            ensure.push("qb-core");
+            log("QBCore : importe resources/[qb]/qb-core/qbcore.sql dans ta base avant le premier démarrage.".into());
+        }
+        _ => ensure.push("basic-gamemode"),
+    }
+    let ensure: String = ensure.iter().map(|r| format!("ensure {r}\n")).collect();
+    let cfg = format!(
+        "endpoint_add_tcp \"0.0.0.0:{port}\"\nendpoint_add_udp \"0.0.0.0:{port}\"\n\n{ensure}\n{extra}sv_hostname \"{name}\"\nsets sv_projectName \"{name}\"\nsv_maxclients {max}\nset onesync on\nsv_scriptHookAllowed 0\nsv_licenseKey \"{key}\"\n",
+        name = clean(name),
+        max = o.max_players.unwrap_or(48).clamp(1, 2048),
+    );
+    tokio::fs::write(sd.join("server.cfg"), cfg).await?;
+    if key.is_empty() {
+        log("Aucune clé de licence : ajoute sv_licenseKey dans server.cfg (gratuite sur portal.cfx.re).".into());
+    }
     Ok(())
 }
 
-/// Programme et arguments pour lancer le serveur.
-pub async fn command(game: Game, data: &Path, dir: &Path, port: u16, ram_mb: u32) -> Result<(PathBuf, Vec<String>)> {
+/// Télécharge une archive qui contient un seul dossier et le place à `to`.
+async fn fetch_tree(url: &str, to: &Path, work: &Path) -> Result<()> {
+    let tmp = work.join("tmp-extract");
+    let file = work.join("tmp.zip");
+    tokio::fs::remove_dir_all(&tmp).await.ok();
+    download(url, &file).await?;
+    extract(&file, &tmp).await?;
+    tokio::fs::remove_file(&file).await.ok();
+    let mut rd = tokio::fs::read_dir(&tmp).await?;
+    let top = rd.next_entry().await?.ok_or_else(|| anyhow!("archive vide : {url}"))?.path();
+    if let Some(p) = to.parent() {
+        tokio::fs::create_dir_all(p).await?;
+    }
+    tokio::fs::rename(&top, to).await?;
+    tokio::fs::remove_dir_all(&tmp).await.ok();
+    Ok(())
+}
+
+impl Game {
+    /// Plafond mémoire du processus : le tas Java plus la marge de la JVM, ou la RAM telle quelle pour FiveM.
+    pub fn mem_cap(self, ram_mb: u32) -> u32 {
+        match self {
+            Game::Minecraft => ram_mb + (ram_mb / 4).max(512),
+            Game::Fivem => ram_mb,
+        }
+    }
+}
+
+/// Programme, arguments et dossier de travail pour lancer le serveur.
+pub async fn command(game: Game, data: &Path, dir: &Path, port: u16, ram_mb: u32, java: u8, txadmin: bool) -> Result<(PathBuf, Vec<String>, PathBuf)> {
     Ok(match game {
         Game::Minecraft => (
-            java_bin(data).await?,
+            java_bin(data, java).await?,
             vec![format!("-Xms{ram_mb}M"), format!("-Xmx{ram_mb}M"), "-jar".into(), "server.jar".into(), "nogui".into()],
+            dir.to_path_buf(),
         ),
         Game::Fivem => {
             let a = dir.join("artifacts");
             let exe = if WIN { a.join("FXServer.exe") } else { a.join("run.sh") };
-            (exe, vec!["+set".into(), "txAdminPort".into(), txadmin_port(port).to_string()])
+            if txadmin {
+                (exe, vec!["+set".into(), "txAdminPort".into(), txadmin_port(port).to_string()], dir.to_path_buf())
+            } else {
+                (exe, vec!["+exec".into(), "server.cfg".into()], dir.join("server-data"))
+            }
         }
     })
 }
 
-/// Java (Temurin JRE 25) partagé par tous les serveurs Minecraft.
-async fn java(data: &Path, log: &impl Fn(String)) -> Result<()> {
-    if java_bin(data).await.is_ok() {
+/// Java (Temurin JRE) partagé par les serveurs Minecraft, un dossier par version.
+async fn java(data: &Path, v: u8, log: &impl Fn(String)) -> Result<()> {
+    if !JAVAS.contains(&v) {
+        bail!("Java {v} non proposé");
+    }
+    if java_bin(data, v).await.is_ok() {
         return Ok(());
     }
     let os = if WIN { "windows" } else { "linux" };
-    let dir = data.join("runtime").join("java25");
+    let dir = data.join("runtime").join(format!("java{v}"));
     let file = data.join("runtime").join("java.archive");
     tokio::fs::create_dir_all(&dir).await?;
-    log("Téléchargement de Java 25…".into());
-    download(&format!("https://api.adoptium.net/v3/binary/latest/25/ga/{os}/x64/jre/hotspot/normal/eclipse"), &file).await?;
+    log(format!("Téléchargement de Java {v}…"));
+    download(&format!("https://api.adoptium.net/v3/binary/latest/{v}/ga/{os}/x64/jre/hotspot/normal/eclipse"), &file).await?;
     extract(&file, &dir).await?;
     tokio::fs::remove_file(&file).await.ok();
-    java_bin(data).await.map(|_| ())
+    java_bin(data, v).await.map(|_| ())
 }
 
-async fn java_bin(data: &Path) -> Result<PathBuf> {
-    let mut rd = tokio::fs::read_dir(data.join("runtime").join("java25")).await?;
+async fn java_bin(data: &Path, v: u8) -> Result<PathBuf> {
+    let mut rd = tokio::fs::read_dir(data.join("runtime").join(format!("java{v}"))).await?;
     while let Some(e) = rd.next_entry().await? {
         let bin = e.path().join("bin").join(if WIN { "java.exe" } else { "java" });
         if bin.exists() {
@@ -187,5 +351,12 @@ mod tests {
     fn set_props_keeps_rest() {
         let r = super::set_props("#c\nmotd=hi\nserver-port=1\n", &[("server-port", "2"), ("query.port", "2")]);
         assert_eq!(r, "#c\nmotd=hi\nserver-port=2\nquery.port=2\n");
+    }
+
+    #[test]
+    fn java_par_version() {
+        use super::java_for;
+        assert_eq!((java_for("1.8.8"), java_for("1.16.5"), java_for("1.18.2"), java_for("1.20.4")), (8, 8, 17, 17));
+        assert_eq!((java_for("1.20.6"), java_for("1.21.11"), java_for("26.1.2")), (21, 21, 25));
     }
 }

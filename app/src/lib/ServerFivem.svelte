@@ -3,7 +3,7 @@
   import type { Server } from './api'
 
   let { server, address }: { server: Server; address: string } = $props()
-  let txadmin = $state(true)
+  let txadmin = $state(server.txadmin ?? true)
   let showKey = $state(false)
 </script>
 
