@@ -15,7 +15,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 ## 2. Paramètres et options
 - [x] **P1** Page **Paramètres de l'appli** (v0.1.2 : arrière-plan, démarrage auto, mises à jour, connexion ; reste : thème, langue, rafraîchissement) : thème, langue, fréquence de rafraîchissement, vérifier les mises à jour, version installée
 - [x] **P1** Page **Paramètres d'un serveur** (v0.2 : tout sauf CPU) : nom, port, RAM, CPU, démarrage auto au boot, redémarrage auto si crash
-- [ ] **P1** Éditeur `server.properties` (Minecraft) en formulaire : difficulté, joueurs max, mode de jeu, whitelist, seed, MOTD
+- [x] **P1** Éditeur `server.properties` (Minecraft) en formulaire : difficulté, joueurs max, mode de jeu, whitelist, seed, MOTD
 - [ ] **P1** Éditeur `server.cfg` (FiveM) : nom, slots, clé de licence (masquée)
 - [ ] **P2** Choix de la version du jeu (Minecraft 1.20, 1.21, 26.x… ; build FiveM recommandé / dernier)
 - [ ] **P2** Choix du type Minecraft : Paper, Vanilla, Fabric, Forge, NeoForge, Purpur

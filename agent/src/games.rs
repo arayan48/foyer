@@ -536,8 +536,24 @@ pub fn set_props(text: &str, kv: &[(&str, &str)]) -> String {
     out.join("\n") + "\n"
 }
 
+/// Lit les clés d'un `server.properties` (commentaires et lignes vides ignorés).
+pub fn parse_props(text: &str) -> std::collections::BTreeMap<String, String> {
+    text.lines()
+        .map(str::trim_start)
+        .filter(|l| !l.is_empty() && !l.starts_with(['#', '!']))
+        .filter_map(|l| l.split_once('=').map(|(k, v)| (k.trim().to_string(), v.to_string())))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn parse_props_ignore_commentaires() {
+        let m = super::parse_props("#c\nmotd=a=b\n\ndifficulty=hard\n");
+        assert_eq!(m.len(), 2);
+        assert_eq!((m["motd"].as_str(), m["difficulty"].as_str()), ("a=b", "hard"));
+    }
+
     #[test]
     fn set_props_keeps_rest() {
         let r = super::set_props("#c\nmotd=hi\nserver-port=1\n", &[("server-port", "2"), ("query.port", "2")]);

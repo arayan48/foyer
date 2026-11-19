@@ -55,6 +55,7 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | GET | `/api/servers` | serveurs + statut, cpu, mem, admin_port |
 | POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` |
 | PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
+| GET / PUT | `/api/servers/{id}/properties` | Minecraft : lit / écrit les clés de `server.properties` (`{clé: valeur}`) ; PUT ne touche qu'aux clés envoyées, refuse le port (passer par PATCH) |
 | DELETE | `/api/servers/{id}` | arrête, retire le pare-feu, **efface le dossier** |
 | POST | `/api/servers/{id}/start\|stop\|restart` | cycle de vie |
 | GET (WS) | `/api/servers/{id}/console` | 1000 dernières lignes puis direct ; texte envoyé = commande stdin |

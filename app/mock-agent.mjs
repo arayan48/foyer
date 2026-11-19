@@ -6,10 +6,11 @@ const servers = [
   { id: 'b2', name: 'RP Los Santos', game: 'fivem', port: 30120, ram_mb: 4096, status: 'stopped', cpu: 0, mem: 0, admin_port: 40120, version: 'Build 17000', auto_start: true, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
   { id: 'c3', name: 'Créatif', game: 'minecraft', port: 25566, ram_mb: 2048, status: 'installing', cpu: 0, mem: 0, admin_port: null, auto_start: false, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
 ]
+let props = { motd: 'Chez nous', difficulty: 'normal', 'max-players': '10' }
 const plugins = [{ file: 'EssentialsX-2.21.jar', enabled: true, size: 3.2e6 }, { file: 'Dynmap-3.7.jar.disabled', enabled: false, size: 8e6 }]
 const sys = { name: 'WIN-RVSDEAUH9KJ', os: 'Windows Server 2025 Standard', cpu: 18, mem_used: 6.1e9, mem_total: 17.1e9, disk_free: 4.6e11, disk_total: 5e11, cores: 4, threads: 8, cpu_model: 'Intel(R) Xeon(R) E-2236 CPU @ 3.40GHz', arch: 'x86_64', kernel: '26100', uptime: 412345, agent: '0.2.0' }
 
-http.createServer((q, r) => {
+http.createServer(async (q, r) => {
   r.setHeader('Access-Control-Allow-Origin', '*')
   r.setHeader('Access-Control-Allow-Headers', '*')
   r.setHeader('Access-Control-Allow-Methods', '*')
@@ -30,6 +31,10 @@ http.createServer((q, r) => {
     })
   }
   if (q.url === '/api/servers') return json(servers.map((s) => (s.status === 'running' ? { ...s, cpu: 15 + Math.random() * 20 } : s)))
+  if (/^\/api\/servers\/\w+\/properties$/.test(q.url)) {
+    if (q.method === 'PUT') { let b = ''; for await (const c of q) b += c; props = { ...props, ...JSON.parse(b) }; return r.writeHead(204).end() }
+    return json(props)
+  }
   const pl = q.url.match(/^\/api\/servers\/(\w+)\/plugins(?:\/(.+))?$/)
   if (pl) {
     const f = pl[2] && decodeURIComponent(pl[2])
@@ -65,4 +70,4 @@ http.createServer((q, r) => {
   }
   r.statusCode = 404
   r.end()
-}).listen(7878, '127.0.0.1')
+}).listen(Number(process.env.PORT) || 7878, '127.0.0.1')

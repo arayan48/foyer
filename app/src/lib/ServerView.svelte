@@ -85,7 +85,7 @@
       {:else if tab === 'fivem'}
         <ServerFivem {server} {address} />
       {:else if tab === 'properties'}
-        <ServerProperties />
+        <ServerProperties {conn} {server} />
       {:else if tab === 'plugins'}
         <ServerPlugins {conn} {server} />
       {:else if tab === 'players'}

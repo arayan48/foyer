@@ -169,6 +169,7 @@ async fn main() -> Result<()> {
         .route("/api/servers/{id}", axum::routing::delete(remove).patch(update))
         .route("/api/servers/{id}/{action}", post(action))
         .route("/api/servers/{id}/console", get(console))
+        .route("/api/servers/{id}/properties", get(props_get).put(props_put))
         .route("/api/servers/{id}/plugins", get(plugins).post(plugin_add))
         .route("/api/servers/{id}/plugins/search", get(plugin_search))
         .route("/api/servers/{id}/plugins/{file}", axum::routing::delete(plugin_del).patch(plugin_toggle))
@@ -452,6 +453,35 @@ async fn mc_plugins(app: &App, id: &str) -> Result<(PathBuf, Option<String>), Er
     }
     let mc = s.version.as_deref().and_then(|v| v.strip_prefix("Paper ")).map(str::to_string);
     Ok((app.data.join("servers").join(id).join("plugins"), mc))
+}
+
+/// Chemin de `server.properties` d'un serveur Minecraft.
+async fn mc_props(app: &App, id: &str) -> Result<PathBuf, Err> {
+    let (dir, _) = mc_plugins(app, id).await?;
+    Ok(dir.with_file_name("server.properties"))
+}
+
+async fn props_get(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<std::collections::BTreeMap<String, String>>, Err> {
+    let text = tokio::fs::read_to_string(mc_props(&app, &id).await?).await.unwrap_or_default();
+    Ok(Json(games::parse_props(&text)))
+}
+
+/// Écrit les clés reçues ; le port reste géré par PATCH (pare-feu, conflits).
+async fn props_put(State(app): S, UrlPath(id): UrlPath<String>, Json(kv): Json<std::collections::BTreeMap<String, String>>) -> Result<StatusCode, Err> {
+    let path = mc_props(&app, &id).await?;
+    let bad = |m: String| Err((StatusCode::BAD_REQUEST, m));
+    for (k, v) in &kv {
+        if k.is_empty() || k.contains(['=', ':', '#', '!', ' ', '\n', '\r']) || v.contains(['\n', '\r']) {
+            return bad(format!("Valeur invalide : {k}"));
+        }
+        if k == "server-port" || k == "query.port" {
+            return bad("Change le port dans les paramètres du serveur".into());
+        }
+    }
+    let text = tokio::fs::read_to_string(&path).await.unwrap_or_default();
+    let pairs: Vec<(&str, &str)> = kv.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    tokio::fs::write(&path, games::set_props(&text, &pairs)).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("server.properties : {e}")))?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Serialize)]
