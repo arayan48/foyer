@@ -54,7 +54,7 @@
           <div class="val">{server.game === 'minecraft' ? 'Minecraft' : 'FiveM'}</div>
         </div>
         <div class="row">
-          <div><strong>Port</strong><small>Se change dans l'onglet Réseau.</small></div>
+          <div><strong>Port</strong><small>{server.game === 'minecraft' ? "Se change dans l'onglet Réseau." : 'Se change dans txAdmin.'}</small></div>
           <div class="val">{server.port}</div>
         </div>
       </div>

@@ -140,7 +140,7 @@
         <span>Build FiveM</span>
         <select class="input" bind:value={channel}>
           {#each catalog?.fivem ?? [{ id: 'recommended', build: '' }, { id: 'optional', build: '' }, { id: 'latest', build: '' }] as c}
-            <option value={c.id}>{({ recommended: 'Recommended, le plus sûr', optional: 'Optional', latest: 'Latest, les nouveautés' } as Record<string, string>)[c.id]}{c.build ? ` (build ${c.build})` : ''}</option>
+            <option value={c.id}>{({ recommended: 'Recommandé, le plus sûr', optional: 'Optionnel', latest: 'Dernier, les nouveautés' } as Record<string, string>)[c.id]}{c.build ? ` (build ${c.build})` : ''}</option>
           {/each}
         </select>
       </label>

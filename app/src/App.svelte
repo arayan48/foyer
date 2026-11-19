@@ -109,8 +109,8 @@
       <div class="machine">
         {#if sys}
           <dl>
-            <dt>CPU</dt><dd><span class="bar"><span style:width="{sys.cpu}%"></span></span>{Math.round(sys.cpu)} %</dd>
-            <dt>RAM</dt><dd><span class="bar"><span style:width="{(sys.mem_used / sys.mem_total) * 100}%"></span></span>{bytes(sys.mem_used)}</dd>
+            <dt>Processeur</dt><dd><span class="bar"><span style:width="{sys.cpu}%"></span></span>{Math.round(sys.cpu)} %</dd>
+            <dt>Mémoire</dt><dd><span class="bar"><span style:width="{(sys.mem_used / sys.mem_total) * 100}%"></span></span>{bytes(sys.mem_used)}</dd>
             <dt>Disque</dt><dd><span class="bar"><span style:width="{(1 - sys.disk_free / sys.disk_total) * 100}%"></span></span>{bytes(sys.disk_free)} libres</dd>
           </dl>
         {/if}

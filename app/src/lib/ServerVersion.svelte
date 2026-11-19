@@ -30,7 +30,7 @@
   {#if page === 'software'}
     {#if mc}
       <h2>Logiciel serveur</h2>
-      <p class="lead">Le programme qui fait tourner le monde.</p>
+      <p class="lead">Ce qui est installé sur la machine.</p>
       <div class="card">
         <div class="row">
           <div><strong>Installé</strong><small>Paper, dernière version stable au moment de l'installation.</small></div>
@@ -56,16 +56,16 @@
       <p class="lead">Les fichiers du serveur FXServer, publiés par Cfx.re.</p>
       <div class="card">
         <div class="row">
-          <div><strong>Build installé</strong><small>Build « recommended » au moment de l'installation.</small></div>
-          <div class="val">{server.version ?? 'Recommended'}</div>
+          <div><strong>Build installé</strong><small>Build recommandé au moment de l'installation.</small></div>
+          <div class="val">{server.version ?? 'Recommandé'}</div>
         </div>
         <div class="row">
           <div><strong>Mode</strong><small>{server.txadmin === false ? 'FXServer lancé directement avec server-data/server.cfg.' : 'Géré par txAdmin.'}</small></div>
           <div class="val">{server.txadmin === false ? ({ esx: 'ESX Legacy', qbcore: 'QBCore' } as Record<string, string>)[server.framework ?? ''] ?? 'Vanilla' : 'txAdmin'}</div>
         </div>
         <label class="row">
-          <div><strong>Canal <span class="soon">Bientôt</span></strong><small>« Recommended » est le plus sûr ; « Latest » a les nouveautés.</small></div>
-          <select class="input" disabled><option>Recommended</option><option>Optional</option><option>Latest</option><option>Build précis…</option></select>
+          <div><strong>Canal <span class="soon">Bientôt</span></strong><small>Recommandé est le plus sûr ; Dernier a les nouveautés.</small></div>
+          <select class="input" disabled><option>Recommandé</option><option>Optionnel</option><option>Dernier</option><option>Build précis…</option></select>
         </label>
       </div>
     {/if}

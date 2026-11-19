@@ -44,7 +44,7 @@
 <SubPages {pages} bind:page label="Réglages réseau">
   {#if page === 'address'}
     <h2>Adresse et port</h2>
-    <p class="lead">Ce que les joueurs tapent pour rejoindre.</p>
+    <p class="lead">L'adresse à donner aux joueurs.</p>
     <div class="card">
       <div class="row">
         <div><strong>Adresse sur le réseau local</strong><small>Pour les joueurs connectés à la même box.</small></div>

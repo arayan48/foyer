@@ -21,7 +21,7 @@
 
   {:else if page === 'game'}
     <h2>Partie <span class="soon">Bientôt</span></h2>
-    <p class="lead">Comment on joue.</p>
+    <p class="lead">Mode, difficulté et combat.</p>
     <div class="card">
       <label class="row"><div><strong>Mode de jeu</strong></div><select class="input" disabled><option>Survie</option><option>Créatif</option><option>Aventure</option><option>Spectateur</option></select></label>
       <label class="row"><div><strong>Difficulté</strong></div><select class="input" disabled><option>Normale</option><option>Paisible</option><option>Facile</option><option>Difficile</option></select></label>
@@ -31,7 +31,7 @@
 
   {:else if page === 'access'}
     <h2>Accès <span class="soon">Bientôt</span></h2>
-    <p class="lead">Qui peut entrer.</p>
+    <p class="lead">Nombre de places et qui peut entrer.</p>
     <div class="card">
       <label class="row"><div><strong>Joueurs maximum</strong><small>max-players</small></div><input class="input" type="number" value="20" disabled /></label>
       <label class="row"><div><strong>Liste blanche</strong><small>Seuls les joueurs ajoutés peuvent entrer.</small></div><input type="checkbox" class="switch" disabled /></label>

@@ -20,7 +20,7 @@
     <p class="lead">Le panneau web de FiveM : ressources, joueurs, bans, redémarrages.</p>
     <div class="card">
       <label class="row">
-        <div><strong>Utiliser txAdmin <span class="soon">Bientôt réglable</span></strong><small>Sans txAdmin, Foyer lance FXServer directement avec le fichier server.cfg ci-dessous.</small></div>
+        <div><strong>Utiliser txAdmin <span class="soon">Bientôt</span></strong><small>Sans txAdmin, Foyer lance FXServer directement avec le fichier server.cfg ci-dessous.</small></div>
         <input type="checkbox" class="switch" bind:checked={txadmin} disabled />
       </label>
       {#if server.admin_port}
