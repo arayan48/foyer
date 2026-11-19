@@ -348,6 +348,7 @@ struct Patch {
     cpu_limit: Option<u8>,
     cores: Option<Vec<u16>>,
     ram_cap: Option<bool>,
+    java: Option<u8>,
 }
 
 /// Modifie un serveur. Port et RAM servent au prochain démarrage.
@@ -384,6 +385,12 @@ async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch
         s.cores = cores;
     }
     s.ram_cap = p.ram_cap.unwrap_or(s.ram_cap);
+    if let Some(j) = p.java {
+        if !games::JAVAS.contains(&j) {
+            return bad("Version de Java non proposée");
+        }
+        s.java = j;
+    }
     if let Some(port) = p.port.filter(|&p| p != old.port) {
         if s.game != Game::Minecraft {
             return bad("Le port FiveM se règle dans txAdmin");

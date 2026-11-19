@@ -79,7 +79,7 @@
       {:else if tab === 'network'}
         <ServerNetwork {conn} {server} {address} />
       {:else if tab === 'version'}
-        <ServerVersion {server} />
+        <ServerVersion {conn} {server} />
       {:else if tab === 'fivem'}
         <ServerFivem {server} {address} />
       {:else if tab === 'properties'}

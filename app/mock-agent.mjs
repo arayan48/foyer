@@ -16,7 +16,7 @@ http.createServer((q, r) => {
   if (q.headers.authorization !== 'Bearer test') return (r.statusCode = 401), r.end()
   const json = (v) => (r.setHeader('Content-Type', 'application/json'), r.end(JSON.stringify(v)))
   if (q.url === '/api/system') return json({ ...sys, cpu: 10 + Math.random() * 20 })
-  if (q.url === '/api/catalog') return json({ minecraft: [{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.20.4', java: 17 }, { id: '1.16.5', java: 8 }], java: [8, 11, 17, 21, 25], fivem: [{ id: 'recommended', build: '38435' }, { id: 'optional', build: '7290' }, { id: 'latest', build: '38781' }] })
+  if (q.url === '/api/catalog') return json({ minecraft: [{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.20.4', java: 17 }, { id: '1.16.5', java: 8 }], java: [8, 11, 17, 21, 22, 23, 24, 25], fivem: [{ id: 'recommended', build: '38435' }, { id: 'optional', build: '7290' }, { id: 'latest', build: '38781' }] })
   if (q.url === '/api/servers' && q.method === 'POST') {
     let body = ''
     q.on('data', (c) => (body += c))

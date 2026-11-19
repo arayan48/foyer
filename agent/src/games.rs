@@ -81,7 +81,7 @@ pub fn yes() -> bool {
     true
 }
 
-pub const JAVAS: [u8; 5] = [8, 11, 17, 21, 25];
+pub const JAVAS: [u8; 8] = [8, 11, 17, 21, 22, 23, 24, 25];
 
 /// Java conseillé pour une version de Minecraft.
 pub fn java_for(mc: &str) -> u8 {
