@@ -89,11 +89,11 @@
       {:else if tab === 'plugins'}
         <ServerPlugins {conn} {server} />
       {:else if tab === 'players'}
-        <ServerSoon icon={Users} title="Joueurs" text={mc ? 'Voir qui est connecté, expulser, bannir, donner les droits d\'opérateur et gérer la liste blanche.' : 'Voir qui est connecté, expulser et bannir. En attendant, txAdmin le fait déjà.'} version="v0.5" />
+        <ServerSoon icon={Users} title="Joueurs" text={mc ? 'Voir qui est connecté, expulser, bannir, donner les droits d\'opérateur et gérer la liste blanche.' : 'Voir qui est connecté, expulser et bannir. En attendant, txAdmin le fait déjà.'} />
       {:else if tab === 'files'}
-        <ServerSoon icon={FolderOpen} title="Fichiers" text="Parcourir les fichiers du serveur, modifier les configurations, envoyer et télécharger." version="v0.4" />
+        <ServerSoon icon={FolderOpen} title="Fichiers" text="Parcourir les fichiers du serveur, modifier les configurations, envoyer et télécharger." />
       {:else}
-        <ServerSoon icon={Archive} title="Sauvegardes" text="Sauvegardes à la main ou planifiées, restauration en un clic, nombre de copies à garder." version="v0.4" />
+        <ServerSoon icon={Archive} title="Sauvegardes" text="Sauvegardes à la main ou planifiées, restauration en un clic, nombre de copies à garder." />
       {/if}
     </div>
   {/key}

@@ -1,4 +1,4 @@
-export type Game = 'minecraft' | 'fivem'
+export type Game = 'minecraft' | 'fivem' | 'valheim' | 'terraria'
 export type Status = 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'error'
 
 export interface Server {
@@ -159,9 +159,11 @@ export function host(c: Conn) {
   return new URL(c.url).hostname
 }
 
-export const GAMES: Record<Game, { label: string; hint: string; port: number }> = {
-  minecraft: { label: 'Minecraft', hint: 'Java Edition, serveur Paper', port: 25565 },
-  fivem: { label: 'FiveM', hint: 'GTA V roleplay, ESX ou QBCore', port: 30120 },
+export const GAMES: Record<Game, { label: string; hint: string; port: number; min: string; soon?: boolean }> = {
+  minecraft: { label: 'Minecraft', hint: 'Java Edition, serveur Paper', port: 25565, min: '2 cœurs · 4 Go RAM · 10 Go disque' },
+  fivem: { label: 'FiveM', hint: 'GTA V roleplay, ESX ou QBCore', port: 30120, min: '4 cœurs · 8 Go RAM · 30 Go disque', soon: true },
+  valheim: { label: 'Valheim', hint: 'Survie viking en coopération', port: 2456, min: '2 cœurs · 4 Go RAM · 5 Go disque', soon: true },
+  terraria: { label: 'Terraria', hint: 'Aventure 2D, serveur TShock', port: 7777, min: '1 cœur · 1 Go RAM · 1 Go disque', soon: true },
 }
 
 export const STATUS: Record<Status, string> = {

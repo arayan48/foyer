@@ -118,10 +118,10 @@
       <legend>Quel jeu ?</legend>
       <div class="games">
         {#each Object.entries(GAMES) as [key, g]}
-          <label class="game" class:on={game === key}>
-            <input type="radio" name="game" value={key} bind:group={game} />
+          <label class="game" class:on={game === key} class:off={g.soon}>
+            <input type="radio" name="game" value={key} bind:group={game} disabled={g.soon} />
             <GameMark game={key as Game} size={44} />
-            <span><strong>{g.label}</strong><small>{g.hint}</small></span>
+            <span><strong>{g.label}{#if g.soon} <span class="soon">Bientôt</span>{/if}</strong><small>{g.hint}</small><small class="min" title="Configuration minimale du serveur">Mini : {g.min}</small></span>
           </label>
         {/each}
       </div>
@@ -251,7 +251,10 @@
   .game.on { border-color: var(--primary); background: var(--primary-soft); }
   .game input { position: absolute; opacity: 0; pointer-events: none; }
   .game:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
-  .game span { display: grid; }
+  .game .min { font-size: 0.78rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .game.off { opacity: 0.5; cursor: not-allowed; }
+  .game.off:hover { background: none; }
+  .game > span { display: grid; }
   .game small { color: var(--muted); font-size: 0.85rem; }
   .steps { margin: 0 0 24px; display: grid; gap: 8px; max-width: 560px; }
   .steps-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--ink); }

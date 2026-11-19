@@ -7,7 +7,7 @@
   <span class="ic"><Icon size={22} /></span>
   <h2>{title}</h2>
   <p>{text}</p>
-  <span class="soon">Prévu pour la {version}</span>
+  <span class="soon">Bientôt</span>
 </div>
 
 <style>

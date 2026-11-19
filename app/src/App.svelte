@@ -24,11 +24,11 @@
 
   // pages prévues : visibles dès maintenant pour situer la suite
   const SOON = [
-    { id: 'traffic', label: 'Trafic', icon: Activity, title: 'Analyse du trafic', text: 'Joueurs connectés dans le temps, heures de pointe, bande passante et latence par serveur.', version: '0.6' },
-    { id: 'players', label: 'Joueurs', icon: Users, title: 'Joueurs', text: 'Qui joue où, historique des connexions, bannissements et liste blanche au même endroit.', version: '0.6' },
-    { id: 'backups', label: 'Sauvegardes', icon: Archive, title: 'Sauvegardes', text: 'Copies automatiques des mondes, restauration en un clic.', version: '0.5' },
-    { id: 'tasks', label: 'Planification', icon: CalendarClock, title: 'Tâches planifiées', text: 'Redémarrage chaque nuit, annonces, sauvegardes à heure fixe.', version: '0.5' },
-    { id: 'logs', label: 'Journal', icon: ScrollText, title: 'Journal', text: "Tout ce qui s'est passé : démarrages, plantages, changements de réglages.", version: '0.6' },
+    { id: 'traffic', label: 'Trafic', icon: Activity, title: 'Analyse du trafic', text: 'Joueurs connectés dans le temps, heures de pointe, bande passante et latence par serveur.' },
+    { id: 'players', label: 'Joueurs', icon: Users, title: 'Joueurs', text: 'Qui joue où, historique des connexions, bannissements et liste blanche au même endroit.' },
+    { id: 'backups', label: 'Sauvegardes', icon: Archive, title: 'Sauvegardes', text: 'Copies automatiques des mondes, restauration en un clic.' },
+    { id: 'tasks', label: 'Planification', icon: CalendarClock, title: 'Tâches planifiées', text: 'Redémarrage chaque nuit, annonces, sauvegardes à heure fixe.' },
+    { id: 'logs', label: 'Journal', icon: ScrollText, title: 'Journal', text: "Tout ce qui s'est passé : démarrages, plantages, changements de réglages." },
   ]
   const soon = $derived(view.name === 'soon' ? SOON.find((p) => p.id === (view as { id: string }).id) : undefined)
   let toast = $state('')
@@ -150,7 +150,7 @@
         <Dashboard {servers} {sys} {loading} onnew={() => (view = { name: 'new' })} onopen={(s) => (view = { name: 'server', id: s.id })} onaction={act} />
       {:else if view.name === 'soon' && soon}
         <header class="page-head"><h1>{soon.label}</h1></header>
-        <ServerSoon icon={soon.icon} title={soon.title} text={soon.text} version={soon.version} />
+        <ServerSoon icon={soon.icon} title={soon.title} text={soon.text} />
       {:else if view.name === 'new'}
         <NewServer conn={conn} {servers} oncancel={() => (view = { name: 'list' })} oncreated={(s) => { refresh(); view = { name: 'server', id: s.id } }} />
       {:else if view.name === 'server' && current}
