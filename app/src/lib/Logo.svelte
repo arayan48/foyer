@@ -2,12 +2,11 @@
   let { size = 28 }: { size?: number } = $props()
 </script>
 
-<!-- marque Foyer : une flamme dans une tuile -->
-<svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true">
-  <defs>
-    <linearGradient id="foyer-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb26b" /><stop offset="1" stop-color="#e8643a" /></linearGradient>
-  </defs>
-  <rect width="32" height="32" rx="9" fill="url(#foyer-bg)" />
-  <path d="M16.4 6.5c.5 3.2 4.6 5 4.6 10a5 5 0 0 1-10 0c0-2.2 1.2-3.7 2.4-4.6.1 1.6.8 2.7 1.9 3.1-.6-3.3.3-6.4 1.1-8.5Z" fill="#2a1408" opacity=".88" />
-  <path d="M16 18.2c1.3 1 2.2 2 2.2 3.3a2.2 2.2 0 0 1-4.4 0c0-1.3.9-2.3 2.2-3.3Z" fill="#ffd9a8" />
+<!-- marque Foyer : le toit et la tuile, sur fond encre (comme l'icône de l'appli) -->
+<svg viewBox="0 0 100 100" width={size} height={size} aria-hidden="true">
+  <rect width="100" height="100" rx="24" fill="#201e1d" />
+  <g transform="translate(20 20) scale(0.6)">
+    <path d="M21 90V39A18 18 0 0 1 39 21H90" fill="none" stroke="#f5ead8" stroke-width="22" />
+    <rect x="46" y="46" width="44" height="44" rx="12" fill="#c67139" />
+  </g>
 </svg>
