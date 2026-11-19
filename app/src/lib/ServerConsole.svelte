@@ -158,11 +158,11 @@
   .num { font-variant-numeric: tabular-nums; }
   .wrap { container-type: inline-size; }
   /* 2 colonnes, puis 3, puis tout sur une ligne */
-  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; margin-bottom: 14px; }
   @container (min-width: 600px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   @container (max-width: 599px) { .tile.wide { grid-column: span 2; } }
   @container (min-width: 960px) { .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.6fr); } }
-  .tile { display: grid; align-content: start; gap: 4px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r); min-width: 0; }
+  .tile { display: grid; align-content: start; gap: 4px; padding: 12px 2px; background: none; border: 0; border-radius: 0; min-width: 0; }
   .tile > span { color: var(--muted); font-size: 0.8rem; }
   .tile strong { font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tile small { color: var(--faint); font-weight: 400; font-size: 0.85rem; }
@@ -206,7 +206,7 @@
   .console input:not(.search input) { flex: 1; height: 42px; border: 0; background: none; font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 13px; outline: none; }
   .console input:disabled { cursor: not-allowed; }
   .console input::placeholder { color: oklch(0.62 0.01 265); }
-  .players { display: grid; grid-template-rows: auto 1fr; min-height: 0; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line-soft); overflow: hidden; }
+  .players { display: grid; grid-template-rows: auto 1fr; min-height: 0; border-radius: 0; background: none; border: 0; overflow: hidden; }
   .players .bar { justify-content: space-between; padding-right: 14px; border-color: var(--line-soft); }
   .players ul { margin: 0; padding: 6px; list-style: none; overflow: auto; }
   .players li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); font-size: 0.875rem; }

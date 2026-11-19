@@ -96,6 +96,7 @@
   </ul>
 {/if}
 
+<h2 class="title first">Machine</h2>
 <div class="grid">
   <!-- Machine : courbes en direct -->
   <section class="card machine" aria-label="Activité de la machine">
@@ -129,7 +130,7 @@
 
   <!-- Qui prend la RAM -->
   <section class="card ram" aria-label="Répartition de la mémoire">
-    <h2>Qui utilise la mémoire</h2>
+    <h3>Qui utilise la mémoire</h3>
     {#if sys}
       <div class="stack" role="img" aria-label="Mémoire utilisée par serveur">
         {#each ramParts as p}
@@ -207,20 +208,23 @@
 <style>
   header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
   .sub { color: var(--muted); }
-  h2 { font-size: 0.93rem; margin: 0 0 12px; }
-  .title { margin: 28px 0 12px; display: flex; align-items: center; gap: 8px; }
+  /* titres de section discrets, comme ceux de la barre latérale : ils structurent sans encadrer */
+  h2.title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin: 36px 0 12px; display: flex; align-items: center; gap: 8px; }
+  h2.title.first { margin-top: 8px; }
+  h3 { font-size: 0.93rem; font-weight: 600; margin: 0 0 12px; }
   .count { font-size: 0.79rem; color: var(--muted); background: var(--surface-2); border-radius: 99px; padding: 1px 8px; font-weight: 500; }
   .lbl { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.79rem; }
   .num { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.86rem; }
   .meta { color: var(--muted); font-size: 0.79rem; font-weight: 400; }
   .skeleton { background: var(--surface-2); border-radius: var(--r); min-height: 60px; }
 
-  .grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: stretch; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: stretch; }
   .grid > .card { margin-top: 0; }
   .chart { display: flex; flex-direction: column; }
   .chart svg { flex: 1; min-height: 80px; }
-  .card { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 18px 20px; animation: in 300ms var(--ease) both; }
-  .machine { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card { background: none; border: 0; border-radius: 0; box-shadow: none; padding: 6px 0 14px; animation: in 300ms var(--ease) both; }
+  .machine { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .machine .chart + .chart { padding-left: 32px; border-left: 1px solid var(--line-soft); }
   .ram { grid-column: 1 / -1; }
 
   .chart .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -254,19 +258,20 @@
   .legend i { width: 9px; height: 9px; border-radius: 3px; }
   .legend i.free { box-shadow: inset 0 0 0 1px var(--line); }
   .legend span { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .disk { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .disk { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; margin-top: 18px; }
   .bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
   .bar span { display: block; height: 100%; background: var(--primary); transition: width 400ms var(--ease); }
   .disk.warn .bar span { background: var(--warn); }
   .disk.warn .num { color: var(--warn); }
 
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-  .tile { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 14px; display: grid; gap: 8px; animation: in 300ms var(--ease) both; }
+  .tile { background: none; border: 0; border-radius: var(--r-lg); box-shadow: none; padding: 10px; transition: background 150ms var(--ease); display: grid; gap: 8px; animation: in 300ms var(--ease) both; }
+  .tile:hover { background: oklch(1 0 0 / 0.04); }
   .tile.skeleton { min-height: 140px; }
   .tile svg, .foot { padding-inline: 4px; }
   .tile svg { width: 100%; box-sizing: border-box; height: 36px; display: block; }
   .open { display: flex; align-items: center; gap: 10px; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; padding: 4px; border-radius: 8px; min-width: 0; font: inherit; transition: background 150ms; }
-  .open:hover { background: var(--surface-2); }
+  .open:hover { background: oklch(1 0 0 / 0.04); }
   .open:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
   .open > span { display: grid; min-width: 0; }
   .open strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -279,15 +284,15 @@
   .downs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 10px; }
   .down .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .down .open { min-width: 0; }
-  .down { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r); box-shadow: var(--shadow); transition: border-color 150ms; }
-  .down:hover { border-color: var(--line); }
+  .down { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px; background: none; border: 0; border-radius: var(--r-lg); box-shadow: none; transition: background 150ms var(--ease); }
+  .down:hover { background: oklch(1 0 0 / 0.04); }
   .down .open { flex: 1; }
-  .down.err { border-color: oklch(0.7 0.18 25 / 0.5); }
+  .down.err { background: oklch(0.7 0.18 25 / 0.07); }
   .start { flex: none; }
   .start:hover { border-color: var(--ok); color: var(--ok); }
   .start :global(svg) { fill: currentColor; }
 
   @keyframes in { from { opacity: 0; translate: 0 6px; } }
   @media (prefers-reduced-motion: reduce) { .card, .tile { animation: none; } }
-  @media (max-width: 800px) { .grid, .machine { grid-template-columns: 1fr; } }
+  @media (max-width: 800px) { .grid, .machine { grid-template-columns: 1fr; } .machine .chart + .chart { padding-left: 0; border-left: 0; } }
 </style>

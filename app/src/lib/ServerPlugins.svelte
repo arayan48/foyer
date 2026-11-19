@@ -245,7 +245,7 @@
 
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; transition: opacity 150ms; }
   .grid.dim { opacity: 0.5; pointer-events: none; }
-  .tile { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line-soft); box-shadow: var(--shadow); transition: border-color 150ms, translate 200ms var(--ease); }
+  .tile { display: flex; flex-direction: column; gap: 10px; padding: 16px 2px; border-radius: 0; background: none; border: 0; box-shadow: none; transition: border-color 150ms, translate 200ms var(--ease); }
   .tile:hover { border-color: var(--line); translate: 0 -1px; }
   .tile.skel { min-height: 190px; animation: pulse 1.4s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: 0.5; } }

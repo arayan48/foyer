@@ -73,13 +73,13 @@
 <style>
   header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
   .sub { color: var(--muted); margin-top: 2px; }
-  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
   .row {
     display: grid; grid-template-columns: minmax(200px, 1fr) 110px 130px 130px 190px; align-items: center; gap: 20px;
-    padding: 12px 16px; border-radius: var(--r); background: var(--surface); border: 1px solid transparent;
-    transition: border-color 150ms var(--ease);
+    padding: 14px 12px; border-radius: var(--r-sm);
+    transition: background 150ms var(--ease);
   }
-  .row:hover { border-color: var(--line); }
+  .row:hover { background: oklch(1 0 0 / 0.03); }
   .skeleton { height: 66px; animation: pulse 1.4s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: 0.5; } }
   .main { display: flex; align-items: center; gap: 12px; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; min-width: 0; }

@@ -36,7 +36,8 @@
   font-size: clamp(14px, 0.25vw + 10px, 16px);
   line-height: 1.5;
   color: var(--ink);
-  background: var(--bg);
+  /* lueur braise très légère en haut : donne de la profondeur sans blocs */
+  background: radial-gradient(1000px 420px at 75% -180px, oklch(0.75 0.15 52 / 0.07), transparent 70%) fixed, var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -88,8 +89,8 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 /* Pages de réglages : cartes, lignes, interrupteurs */
-.card { background: var(--surface); border: 0; border-radius: var(--r); overflow: hidden; box-shadow: var(--shadow); }
-.card + .card { margin-top: 16px; }
+.card { background: none; border: 0; border-radius: 0; overflow: hidden; box-shadow: none; }
+.card + .card { margin-top: 28px; }
 .card > .row:first-child { border-top: 0; }
 .row { display: grid; grid-template-columns: 1fr minmax(0, 260px); gap: 8px 24px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line-soft); }
 .row.wide { grid-template-columns: 1fr; }

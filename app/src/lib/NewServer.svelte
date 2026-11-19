@@ -259,7 +259,7 @@
   .track { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
   .fill { height: 100%; border-radius: inherit; background: var(--primary); transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
   @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
-  .recap { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+  .recap { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; padding: 12px 2px; border: 0; border-radius: 0; background: none; }
   .recap dt { color: var(--muted); }
   .recap dd { margin: 0; }
   .three { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
