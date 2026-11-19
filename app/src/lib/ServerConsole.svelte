@@ -78,6 +78,7 @@
   }
 </script>
 
+<div class="wrap">
 <section class="tiles">
   <div class="tile">
     <span>Processeur</span>
@@ -151,12 +152,17 @@
     {/if}
   </aside>
 </div>
+</div>
 
 <style>
   .num { font-variant-numeric: tabular-nums; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .wrap { container-type: inline-size; }
+  /* 2 colonnes, puis 3, puis tout sur une ligne */
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  @container (min-width: 600px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @container (max-width: 599px) { .tile.wide { grid-column: span 2; } }
+  @container (min-width: 960px) { .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.6fr); } }
   .tile { display: grid; align-content: start; gap: 4px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r); min-width: 0; }
-  .tile.wide { grid-column: span 2; }
   .tile > span { color: var(--muted); font-size: 0.8rem; }
   .tile strong { font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tile small { color: var(--faint); font-weight: 400; font-size: 0.85rem; }
@@ -170,11 +176,20 @@
   .icon { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: var(--r-sm); background: none; color: var(--muted); cursor: pointer; }
   .icon:hover { background: var(--hover); color: var(--ink); }
   .icon:focus-visible, .jump:focus-visible, .addr a:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
-  .body { display: grid; grid-template-columns: 1fr 240px; gap: 10px; height: min(62vh, 640px); }
-  @media (max-width: 900px) { .body { grid-template-columns: 1fr; height: auto; } .console { height: 60vh; } .tile.wide { grid-column: auto; } }
+  /* étroit : joueurs sous la console ; large : à droite, hauteur calée sur la fenêtre */
+  .body { display: grid; gap: 10px; }
+  .console { height: max(320px, 58vh); }
+  .players { max-height: 220px; }
+  @container (min-width: 820px) {
+    .body { grid-template-columns: minmax(0, 1fr) clamp(200px, 22cqi, 280px); height: max(360px, calc(100vh - 300px)); }
+    .console { height: auto; }
+    .players { max-height: none; }
+  }
+  @container (max-width: 520px) { .count { display: none; } .search { margin-left: auto; } .search input { width: 80px; } }
   .console { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; border-radius: var(--r); overflow: hidden; background: oklch(0.12 0.006 265); border: 1px solid var(--line); }
   .bar { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
-  .count { color: var(--faint); margin-right: auto; }
+  .count { color: var(--faint); margin-right: auto; white-space: nowrap; }
+  .dot { white-space: nowrap; }
   .dot { display: inline-flex; align-items: center; gap: 6px; }
   .dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
   .dot.on::before { background: var(--ok); }
