@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Play, Square, RotateCw, Plus, TerminalSquare } from 'lucide-svelte'
+  import { Play, Square, RotateCw, Plus, TerminalSquare, Cpu, MemoryStick } from 'lucide-svelte'
   import GameMark from './GameMark.svelte'
   import { GAMES, STATUS, bytes, type Server } from './api'
 
@@ -46,21 +46,22 @@
         </button>
         <span class="status {s.status}"><i></i>{STATUS[s.status]}</span>
         <span class="meter" title="Processeur">
-          <span class="lbl">CPU</span>
+          <span class="lbl"><Cpu size={14} /></span>
           <span class="bar"><span style:width="{Math.min(100, s.cpu)}%"></span></span>
           <span class="val">{live(s) ? Math.round(s.cpu) + ' %' : '–'}</span>
         </span>
         <span class="meter" title="Mémoire (limite {bytes(s.ram_mb * 1024 ** 2)})">
-          <span class="lbl">RAM</span>
+          <span class="lbl"><MemoryStick size={14} /></span>
           <span class="bar"><span style:width="{Math.min(100, (s.mem / (s.ram_mb * 1024 ** 2)) * 100)}%"></span></span>
           <span class="val">{live(s) ? bytes(s.mem) : '–'}</span>
         </span>
         <span class="actions">
           {#if s.status === 'stopped' || s.status === 'error'}
-            <button class="btn" onclick={() => onaction(s, 'start')}><Play size={15} /> Démarrer</button>
+            <span class="ph"></span>
+            <button class="btn act" onclick={() => onaction(s, 'start')}><Play size={15} /> Démarrer</button>
           {:else}
             <button class="btn icon" title="Redémarrer" aria-label="Redémarrer" disabled={s.status !== 'running'} onclick={() => onaction(s, 'restart')}><RotateCw size={15} /></button>
-            <button class="btn" disabled={s.status === 'installing' || s.status === 'stopping'} onclick={() => onaction(s, 'stop')}><Square size={14} /> Arrêter</button>
+            <button class="btn act" disabled={s.status === 'installing' || s.status === 'stopping'} onclick={() => onaction(s, 'stop')}><Square size={14} /> Arrêter</button>
           {/if}
           <button class="btn icon" title="Console" aria-label="Console" onclick={() => onopen(s)}><TerminalSquare size={15} /></button>
         </span>
@@ -91,12 +92,14 @@
   .status.starting i, .status.installing i, .status.stopping i { background: var(--warn); animation: pulse 1s infinite; }
   .status.starting, .status.installing, .status.stopping { color: var(--warn); }
   .status.error { color: var(--err); } .status.error i { background: var(--err); }
-  .meter { display: grid; grid-template-columns: 32px 1fr; grid-template-rows: auto auto; column-gap: 8px; font-size: 0.79rem; }
+  .meter { display: grid; grid-template-columns: 14px 1fr; grid-template-rows: auto auto; column-gap: 8px; font-size: 0.79rem; }
   .lbl { color: var(--muted); grid-row: span 2; align-self: center; }
   .bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; align-self: end; }
   .bar span { display: block; height: 100%; background: var(--primary); border-radius: 2px; transition: width 400ms var(--ease); }
   .val { color: var(--muted); font-variant-numeric: tabular-nums; }
   .actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .ph { width: 32px; flex: none; }
+  .act { min-width: 104px; justify-content: center; }
   .empty { padding: 48px 32px; border: 1px dashed var(--line); border-radius: var(--r); display: grid; gap: 10px; justify-items: start; }
   .empty p { color: var(--muted); max-width: 60ch; margin-bottom: 8px; }
   @media (max-width: 1080px) {

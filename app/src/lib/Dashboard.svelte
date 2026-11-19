@@ -6,7 +6,7 @@
 </script>
 
 <script lang="ts">
-  import { Play, Square, Plus, TriangleAlert, CircleCheck, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
+  import { Play, Square, Plus, TriangleAlert, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
   import { untrack } from 'svelte'
   import GameMark from './GameMark.svelte'
   import { GAMES, STATUS, bytes, type Host, type Server } from './api'
@@ -32,8 +32,9 @@
     untrack(() => tick++) // sinon l'effet se relance lui-même
   })
 
-  const up = $derived(servers.filter(live))
-  const down = $derived(servers.filter((s) => !live(s)))
+  const off = (s: Server) => s.status === 'stopped' || s.status === 'error'
+  const up = $derived(servers.filter((s) => !off(s)))
+  const down = $derived(servers.filter(off))
   const diskPct = $derived(sys ? (1 - sys.disk_free / sys.disk_total) * 100 : 0)
   const memPct = $derived(sys ? (sys.mem_used / sys.mem_total) * 100 : 0)
 
@@ -64,7 +65,8 @@
   // tracé d'une courbe 0-100 dans une boîte w×h
   function path(v: number[], w: number, h: number, close = false) {
     if (v.length < 2) return ''
-    const x = (i: number) => (i / (N - 1)) * w + (N - v.length) * (w / (N - 1))
+    // étire les relevés sur toute la largeur, même au démarrage
+    const x = (i: number) => (i / (v.length - 1)) * w
     const y = (n: number) => h - (Math.min(100, Math.max(0, n)) / 100) * h
     const d = v.map((n, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(n).toFixed(1)}`).join('')
     return close ? `${d}L${x(v.length - 1).toFixed(1)},${h}L${x(0).toFixed(1)},${h}Z` : d
@@ -74,10 +76,25 @@
 <header>
   <div>
     <h1>Tableau de bord</h1>
-    <p class="sub">{alerts.length ? `${alerts.length} point${alerts.length > 1 ? 's' : ''} à surveiller` : 'Tout tourne normalement'}</p>
+    <p class="sub">{alerts.length ? `${alerts.length} point${alerts.length > 1 ? 's' : ''} à surveiller` : `${servers.length} serveur${servers.length > 1 ? 's' : ''}`}</p>
   </div>
   <button class="btn primary" onclick={onnew}><Plus size={16} /> Nouveau serveur</button>
 </header>
+
+{#if alerts.length}
+  <ul class="alerts" aria-label="À surveiller">
+    {#each alerts as a}
+      <li class={a.lvl}>
+        <TriangleAlert size={15} />
+        {#if a.s}
+          <button class="link" onclick={() => onopen(a.s!)}>{a.text}</button>
+        {:else}
+          <span>{a.text}</span>
+        {/if}
+      </li>
+    {/each}
+  </ul>
+{/if}
 
 <div class="grid">
   <!-- Machine : courbes en direct -->
@@ -108,27 +125,6 @@
       {/key}
       <span class="axis">{Math.round(memPct)} % utilisés</span>
     </div>
-  </section>
-
-  <!-- À surveiller -->
-  <section class="card watch" aria-label="À surveiller">
-    <h2>À surveiller</h2>
-    {#if alerts.length === 0}
-      <p class="calm"><CircleCheck size={18} /> Rien à signaler.</p>
-    {:else}
-      <ul>
-        {#each alerts as a}
-          <li class={a.lvl}>
-            <TriangleAlert size={15} />
-            {#if a.s}
-              <button class="link" onclick={() => onopen(a.s!)}>{a.text}</button>
-            {:else}
-              <span>{a.text}</span>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {/if}
   </section>
 
   <!-- Qui prend la RAM -->
@@ -178,7 +174,7 @@
           </svg>
         {/key}
         <div class="foot">
-          <span class="num">{Math.round(s.cpu)} % CPU</span>
+          <span class="num">{Math.round(s.cpu)} % processeur</span>
           <span class="num">{bytes(s.mem)} / {bytes(s.ram_mb * MB)}</span>
           {#if s.status === 'running'}
             <button class="btn icon" onclick={() => onaction(s, 'stop')} aria-label="Arrêter {s.name}"><Square size={14} /></button>
@@ -198,9 +194,7 @@
     {#each down as s (s.id)}
       <div class="chip" class:err={s.status === 'error'}>
         <button class="open" onclick={() => onopen(s)}>{s.name} <span class="meta">{STATUS[s.status]}</span></button>
-        {#if s.status === 'stopped' || s.status === 'error'}
-          <button class="btn icon" onclick={() => onaction(s, 'start')} aria-label="Démarrer {s.name}"><Play size={14} /></button>
-        {/if}
+        <button class="btn icon" onclick={() => onaction(s, 'start')} aria-label="Démarrer {s.name}"><Play size={14} /></button>
       </div>
     {/each}
   </div>
@@ -217,7 +211,10 @@
   .meta { color: var(--muted); font-size: 0.79rem; font-weight: 400; }
   .skeleton { background: var(--surface-2); border-radius: var(--r); min-height: 60px; }
 
-  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: stretch; }
+  .grid > .card { margin-top: 0; }
+  .chart { display: flex; flex-direction: column; }
+  .chart svg { flex: 1; min-height: 80px; }
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; animation: in 300ms var(--ease) both; }
   .machine { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   .ram { grid-column: 1 / -1; }
@@ -231,12 +228,11 @@
   .line.alt { stroke: var(--ok); }
   .area.alt { fill: color-mix(in oklch, var(--ok) 15%, transparent); }
 
-  .watch ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .watch li { display: flex; gap: 8px; align-items: flex-start; font-size: 0.86rem; }
-  .watch li :global(svg) { flex: none; margin-top: 2px; }
-  .watch li.warn :global(svg) { color: var(--warn); }
-  .watch li.err :global(svg) { color: var(--err); }
-  .calm { display: flex; align-items: center; gap: 8px; color: var(--ok); margin: 0; }
+  .alerts { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+  .alerts li { display: flex; gap: 8px; align-items: flex-start; font-size: 0.86rem; }
+  .alerts li :global(svg) { flex: none; margin-top: 2px; }
+  .alerts li.warn :global(svg) { color: var(--warn); }
+  .alerts li.err :global(svg) { color: var(--err); }
   .link { border: 0; background: none; color: inherit; text-align: left; padding: 0; cursor: pointer; font: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
   .link:hover { text-decoration-color: var(--primary); }
   .link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
@@ -263,7 +259,8 @@
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
   .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; animation: in 300ms var(--ease) both; }
   .tile.skeleton { min-height: 140px; }
-  .tile svg { width: 100%; height: 36px; display: block; }
+  .tile svg, .foot { padding-inline: 4px; }
+  .tile svg { width: 100%; box-sizing: border-box; height: 36px; display: block; }
   .open { display: flex; align-items: center; gap: 10px; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; padding: 4px; border-radius: 8px; min-width: 0; font: inherit; transition: background 150ms; }
   .open:hover { background: var(--surface-2); }
   .open:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
