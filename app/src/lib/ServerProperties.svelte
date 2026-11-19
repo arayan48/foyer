@@ -12,7 +12,6 @@
 <SubPages {pages} bind:page label="Propriétés Minecraft">
   {#if page === 'world'}
     <h2>Monde <span class="soon">Bientôt</span></h2>
-    <p class="lead">Réglages de server.properties, sans ouvrir le fichier.</p>
     <div class="card">
       <label class="row"><div><strong>Message d'accueil</strong><small>motd, affiché dans la liste des serveurs du jeu.</small></div><input class="input" placeholder="Un serveur Minecraft" disabled /></label>
       <label class="row"><div><strong>Graine du monde</strong><small>level-seed, vide = au hasard. Pour un nouveau monde seulement.</small></div><input class="input" disabled /></label>
@@ -21,7 +20,6 @@
 
   {:else if page === 'game'}
     <h2>Partie <span class="soon">Bientôt</span></h2>
-    <p class="lead">Mode, difficulté et combat.</p>
     <div class="card">
       <label class="row"><div><strong>Mode de jeu</strong></div><select class="input" disabled><option>Survie</option><option>Créatif</option><option>Aventure</option><option>Spectateur</option></select></label>
       <label class="row"><div><strong>Difficulté</strong></div><select class="input" disabled><option>Normale</option><option>Paisible</option><option>Facile</option><option>Difficile</option></select></label>
@@ -31,7 +29,6 @@
 
   {:else if page === 'access'}
     <h2>Accès <span class="soon">Bientôt</span></h2>
-    <p class="lead">Nombre de places et qui peut entrer.</p>
     <div class="card">
       <label class="row"><div><strong>Joueurs maximum</strong><small>max-players</small></div><input class="input" type="number" value="20" disabled /></label>
       <label class="row"><div><strong>Liste blanche</strong><small>Seuls les joueurs ajoutés peuvent entrer.</small></div><input type="checkbox" class="switch" disabled /></label>

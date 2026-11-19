@@ -30,7 +30,6 @@
   {#if page === 'software'}
     {#if mc}
       <h2>Logiciel serveur</h2>
-      <p class="lead">Ce qui est installé sur la machine.</p>
       <div class="card">
         <div class="row">
           <div><strong>Installé</strong><small>Paper, dernière version stable au moment de l'installation.</small></div>
@@ -53,7 +52,6 @@
       </div>
     {:else}
       <h2>Artefacts FiveM</h2>
-      <p class="lead">Les fichiers du serveur FXServer, publiés par Cfx.re.</p>
       <div class="card">
         <div class="row">
           <div><strong>Build installé</strong><small>Build recommandé au moment de l'installation.</small></div>
@@ -72,7 +70,6 @@
 
   {:else if page === 'updates'}
     <h2>Mises à jour <span class="soon">Bientôt</span></h2>
-    <p class="lead">Foyer vérifie s'il existe une version plus récente.</p>
     <div class="card">
       <div class="row">
         <div><strong>Mettre à jour maintenant</strong><small>Arrête le serveur, met à jour, puis le relance.</small></div>
@@ -86,6 +83,5 @@
 
   {:else if page === 'rollback'}
     <h2>Revenir à une version <span class="soon">Bientôt</span></h2>
-    <p class="lead">Réinstalle une version précédente à partir d'une sauvegarde.</p>
   {/if}
 </SubPages>

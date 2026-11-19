@@ -17,7 +17,6 @@
 <SubPages {pages} bind:page label="Réglages FiveM">
   {#if page === 'txadmin'}
     <h2>txAdmin</h2>
-    <p class="lead">Le panneau web de FiveM : ressources, joueurs, bans, redémarrages.</p>
     <div class="card">
       <label class="row">
         <div><strong>Utiliser txAdmin <span class="soon">Bientôt</span></strong><small>Sans txAdmin, Foyer lance FXServer directement avec le fichier server.cfg ci-dessous.</small></div>

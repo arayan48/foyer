@@ -88,7 +88,6 @@
 <SubPages {pages} bind:page label="Rubriques">
   {#if page === 'system'}
     <h2>Système</h2>
-    <p class="lead">La machine où tourne l'agent Foyer.</p>
     {#if sys}
       <h3>Machine</h3>
       <div class="card">
@@ -114,7 +113,6 @@
 
   {:else if page === 'app'}
     <h2>Application</h2>
-    <p class="lead">Le comportement de Foyer sur cet ordinateur.</p>
     <h3>Fenêtre</h3>
     <div class="card">
       <label class="row">
@@ -153,27 +151,24 @@
 
   {:else if page === 'look'}
     <h2>Apparence <span class="soon">Bientôt</span></h2>
-    <p class="lead">Thème, taille du texte et densité.</p>
     <div class="card">
       <label class="row"><div><strong>Thème</strong></div><select class="input" disabled><option>Sombre</option><option>Clair</option><option>Comme le système</option></select></label>
       <label class="row"><div><strong>Couleur d'accent</strong></div><select class="input" disabled><option>Braise</option><option>Bleu</option><option>Vert</option></select></label>
       <div class="row"><div><strong>Zoom</strong><small>Dès maintenant : {mac ? '⌘' : 'Ctrl'} + et {mac ? '⌘' : 'Ctrl'} − pour agrandir ou réduire, {mac ? '⌘' : 'Ctrl'} 0 pour revenir à 100 %.</small></div></div>
-      <label class="row"><div><strong>Affichage compact</strong><small>Plus d'informations par écran.</small></div><input type="checkbox" class="switch" disabled /></label>
+      <label class="row"><div><strong>Affichage compact</strong></div><input type="checkbox" class="switch" disabled /></label>
     </div>
 
   {:else if page === 'notif'}
     <h2>Notifications <span class="soon">Bientôt</span></h2>
-    <p class="lead">Être prévenu quand un serveur a un souci.</p>
     <div class="card">
       <label class="row"><div><strong>Serveur arrêté sur une erreur</strong></div><input type="checkbox" class="switch" checked disabled /></label>
       <label class="row"><div><strong>Disque presque plein</strong></div><input type="checkbox" class="switch" checked disabled /></label>
       <label class="row"><div><strong>Mise à jour du jeu disponible</strong></div><input type="checkbox" class="switch" disabled /></label>
-      <label class="row"><div><strong>Envoyer aussi sur Discord</strong><small>Par un webhook de ton serveur Discord.</small></div><input class="input" placeholder="https://discord.com/api/webhooks/…" disabled /></label>
+      <label class="row"><div><strong>Envoyer aussi sur Discord</strong></div><input class="input" placeholder="https://discord.com/api/webhooks/…" disabled /></label>
     </div>
 
   {:else if page === 'backup'}
     <h2>Sauvegardes <span class="soon">Bientôt</span></h2>
-    <p class="lead">Copies automatiques des mondes et des fichiers.</p>
     <div class="card">
       <label class="row"><div><strong>Fréquence</strong></div><select class="input" disabled><option>Chaque nuit</option><option>Toutes les 6 h</option><option>Chaque semaine</option></select></label>
       <label class="row"><div><strong>Copies gardées</strong></div><input class="input" type="number" value="7" disabled /></label>
@@ -182,7 +177,6 @@
 
   {:else if page === 'keys'}
     <h2>Raccourcis clavier <span class="soon">Bientôt</span></h2>
-    <p class="lead">Aller plus vite sans la souris.</p>
     <div class="card">
       <div class="row"><div><strong>Rechercher un serveur</strong></div><div class="val"><kbd>{mac ? '⌘' : 'Ctrl'}</kbd><kbd>K</kbd></div></div>
       <div class="row"><div><strong>Nouveau serveur</strong></div><div class="val"><kbd>{mac ? '⌘' : 'Ctrl'}</kbd><kbd>N</kbd></div></div>
@@ -191,14 +185,12 @@
 
   {:else if page === 'lang'}
     <h2>Langue <span class="soon">Bientôt</span></h2>
-    <p class="lead">Langue de l'application.</p>
     <div class="card">
       <label class="row"><div><strong>Langue</strong></div><select class="input" disabled><option>Français</option><option>English</option></select></label>
     </div>
 
   {:else if page === 'team'}
     <h2>Équipe <span class="soon">Bientôt</span></h2>
-    <p class="lead">Donner accès à des amis, avec des droits limités.</p>
     <div class="card">
       <div class="row"><div><strong>Inviter quelqu'un</strong><small>Il pourra démarrer et arrêter les serveurs, sans les supprimer.</small></div><div class="val"><button class="btn" disabled><Users size={14} /> Inviter</button></div></div>
     </div>
@@ -208,13 +200,12 @@
     <p class="lead">Foyer gère tes serveurs de jeu, chez toi. Libre et gratuit (licence MIT).</p>
     <div class="card">
       <div class="row"><div><strong>Version</strong></div><div class="val num">{version || '—'}</div></div>
-      <div class="row"><div><strong>Code source</strong><small>Signaler un bug, proposer une idée.</small></div><div class="val"><a class="btn" href="https://github.com/arayan48/foyer" target="_blank" rel="noreferrer"><GithubMark size={14} /> GitHub</a></div></div>
-      <div class="row"><div><strong>Site web <span class="soon">Bientôt</span></strong><small>Guides et nouveautés.</small></div><div class="val"><button class="btn" disabled><Globe size={14} /> Site</button></div></div>
+      <div class="row"><div><strong>Code source</strong></div><div class="val"><a class="btn" href="https://github.com/arayan48/foyer" target="_blank" rel="noreferrer"><GithubMark size={14} /> GitHub</a></div></div>
+      <div class="row"><div><strong>Site web <span class="soon">Bientôt</span></strong></div><div class="val"><button class="btn" disabled><Globe size={14} /> Site</button></div></div>
     </div>
 
   {:else}
     <h2>Connexion</h2>
-    <p class="lead">L'agent que pilote cette application.</p>
     <div class="card">
       <div class="row">
         <div><strong>Agent</strong><small class="num">{conn.url}</small></div>

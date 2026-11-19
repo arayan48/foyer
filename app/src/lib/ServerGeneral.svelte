@@ -44,7 +44,6 @@
 <SubPages {pages} bind:page label="Réglages généraux" onselect={() => (confirmDelete = false)}>
     {#if page === 'server'}
       <h2>Serveur</h2>
-      <p class="lead">Comment ce serveur s'affiche dans Foyer.</p>
       <div class="card">
         <label class="row">
           <div><strong>Nom</strong><small>{f.name.length} / 60 caractères.</small></div>
@@ -99,7 +98,6 @@
 
     {:else if page === 'startup'}
       <h2>Démarrage</h2>
-      <p class="lead">Ce que fait Foyer quand la machine s'allume ou que le jeu plante.</p>
       <div class="card">
         <label class="row">
           <div><strong>Démarrer avec la machine</strong><small>Lance le serveur dès que Foyer démarre.</small></div>

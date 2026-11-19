@@ -105,13 +105,9 @@
   <h1>Nouveau serveur</h1>
 </header>
 
-<ol class="steps" aria-label="Étapes">
-  {#each steps as label, i}
-    <li class:done={i < step} class:on={i === step} aria-current={i === step ? 'step' : undefined}>
-      <span class="dot">{i + 1}</span>{label}
-    </li>
-  {/each}
-</ol>
+<div class="steps" role="progressbar" aria-label="Progression" aria-valuemin="1" aria-valuemax={steps.length} aria-valuenow={step + 1} aria-valuetext={`Étape ${step + 1} sur ${steps.length} : ${current}`}>
+  {#each steps as _, i}<span class:done={i <= step}></span>{/each}
+</div>
 
 <form onsubmit={submit}>
   {#if current === 'Jeu'}
@@ -254,12 +250,9 @@
   .game:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
   .game span { display: grid; }
   .game small { color: var(--muted); font-size: 0.85rem; }
-  .steps { list-style: none; display: flex; gap: 16px; padding: 0; margin: 0 0 24px; color: var(--muted); font-size: 0.89rem; flex-wrap: wrap; }
-  .steps li { display: flex; align-items: center; gap: 8px; }
-  .steps li.on { color: var(--ink); }
-  .dot { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
-  .steps li.on .dot { border-color: var(--primary); color: var(--primary); }
-  .steps li.done .dot { background: var(--primary); border-color: var(--primary); color: var(--bg, #000); }
+  .steps { display: flex; gap: 6px; margin: 0 0 24px; }
+  .steps span { flex: 1; height: 4px; border-radius: 2px; background: var(--line); transition: background 0.2s; }
+  .steps span.done { background: var(--primary); }
   .recap { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
   .recap dt { color: var(--muted); }
   .recap dd { margin: 0; }

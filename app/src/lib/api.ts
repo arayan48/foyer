@@ -20,6 +20,10 @@ export interface Server {
   java?: number
   txadmin?: boolean
   framework?: 'vanilla' | 'esx' | 'qbcore' | null
+  // à venir côté agent : la console les affiche dès qu'ils existent
+  players?: string[]
+  max_players?: number
+  uptime_s?: number
 }
 
 export interface Catalog {

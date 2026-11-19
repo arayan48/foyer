@@ -44,7 +44,6 @@
 <SubPages {pages} bind:page label="Réglages réseau">
   {#if page === 'address'}
     <h2>Adresse et port</h2>
-    <p class="lead">L'adresse à donner aux joueurs.</p>
     <div class="card">
       <div class="row">
         <div><strong>Adresse sur le réseau local</strong><small>Pour les joueurs connectés à la même box.</small></div>
@@ -73,7 +72,6 @@
 
   {:else if page === 'internet'}
     <h2>Jouer depuis Internet <span class="soon">Bientôt</span></h2>
-    <p class="lead">Pour les potes qui ne sont pas chez toi, sans ouvrir de port sur la box.</p>
     <div class="card">
       <label class="row">
         <div><strong>Tunnel playit.gg</strong><small>Donne une adresse publique au serveur.</small></div>
