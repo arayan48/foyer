@@ -28,6 +28,9 @@ npm ci --silent
 export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/foyer.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
 npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --config src-tauri/tauri.server.json
+# Linux : client (.deb + AppImage) et agent seul
+cd /srv/foyer/agent && cargo build --release
+cd /srv/foyer/app && npx tauri build --bundles deb,appimage
 EOF
 
 mkdir -p "$OUT"
@@ -37,6 +40,12 @@ scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$N/Foyer_${V}_x6
 scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$N/Foyer\\ Serveur_${V}_x64-setup.exe" "$OUT/Foyer-Serveur.exe"
 scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$N/Foyer\\ Serveur_${V}_x64-setup.exe.sig" "$OUT/Foyer-Serveur.exe.sig"
 
+L=/srv/foyer/app/src-tauri/target/release/bundle
+scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$L/deb/Foyer_${V}_amd64.deb" "$OUT/Foyer-Client-Linux.deb"
+scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$L/appimage/Foyer_${V}_amd64.AppImage" "$OUT/Foyer-Client-Linux.AppImage"
+scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$L/appimage/Foyer_${V}_amd64.AppImage.sig" "$OUT/Foyer-Client-Linux.AppImage.sig"
+scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:/srv/foyer/agent/target/release/foyer-agent" "$OUT/foyer-agent-linux"
+
 # manifestes lus par le module de mise à jour
 for kind in Client Serveur; do
   python3 - "$OUT" "$kind" "$V" "$NOTES" "$REPO" <<'PY'
@@ -45,6 +54,9 @@ out, kind, v, notes, repo = sys.argv[1:]
 sig = open(f"{out}/Foyer-{kind}.exe.sig").read().strip()
 m = {"version": v, "notes": notes, "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
      "platforms": {"windows-x86_64": {"signature": sig, "url": f"https://github.com/{repo}/releases/download/v{v}/Foyer-{kind}.exe"}}}
+if kind == "Client":
+    m["platforms"]["linux-x86_64"] = {"signature": open(f"{out}/Foyer-Client-Linux.AppImage.sig").read().strip(),
+        "url": f"https://github.com/{repo}/releases/download/v{v}/Foyer-Client-Linux.AppImage"}
 json.dump(m, open(f"{out}/{kind.lower()}.json", "w"), indent=2)
 PY
 done
@@ -53,6 +65,9 @@ git add -A
 git commit -qm "Version $V" || true
 git push -q origin HEAD
 gh release create "v$V" --repo "$REPO" --title "Foyer $V" --notes "$NOTES" \
-  "$OUT/Foyer-Serveur.exe" "$OUT/Foyer-Client.exe" "$OUT/client.json" "$OUT/serveur.json"
+  "$OUT/Foyer-Serveur.exe" "$OUT/Foyer-Client.exe" "$OUT/client.json" "$OUT/serveur.json" \
+  "$OUT/Foyer-Client-Linux.deb" "$OUT/Foyer-Client-Linux.AppImage" "$OUT/foyer-agent-linux"
+# Mac : construit sur une machine Mac de GitHub, ajouté à la release en ~10 min
+gh workflow run mac.yml --repo "$REPO" -f tag="v$V"
 cp "$OUT/Foyer-Serveur.exe" "$HOME/Downloads/Foyer Serveur.exe"; cp "$OUT/Foyer-Client.exe" "$HOME/Downloads/Foyer Client.exe"
 echo "Publié : https://github.com/$REPO/releases/tag/v$V"

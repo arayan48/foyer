@@ -99,7 +99,7 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 ## Build et publication
 
 - Machine de build : **claude-box** (Ubuntu, `/srv/foyer`), Rust + `cargo-xwin` (cible MSVC) + mingw (agent en cible GNU) + NSIS.
-- Le Mac n'a pas Rust : on n'y compile pas.
+- Le Mac n'a pas Rust : l'appli Mac (universelle, .dmg) est construite par GitHub Actions (`.github/workflows/mac.yml`), lancé par `release.sh`.
 - `./release.sh <version> "<notes>"` : met la version partout, compile agent + 2 installeurs, signe, écrit `client.json` / `serveur.json`, commit, push, crée la release GitHub, copie les exe dans `~/Downloads`.
 
 ## Mises à jour
