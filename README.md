@@ -10,15 +10,19 @@
 </p>
 
 <p align="center">
+  <strong>English</strong> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/arayan48/foyer/releases/latest"><img src="https://img.shields.io/github/v/release/arayan48/foyer?style=flat-square" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/arayan48/foyer?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/built%20with-Rust%20%2B%20Tauri-orange?style=flat-square" alt="Rust + Tauri">
 </p>
 
----
-
-> 🇫🇷 **En bref :** Foyer installe, lance et surveille vos serveurs de jeu (Minecraft, FiveM, d'autres jeux à venir) depuis une appli de bureau. Un agent tourne sur la machine serveur, l'appli s'y connecte en HTTPS chiffré. Téléchargez `Foyer-Serveur.exe` sur la machine qui héberge les jeux, `Foyer-Client.exe` sur votre PC. Le reste de ce document est en anglais.
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" width="900" alt="Foyer dashboard: live CPU and memory charts, memory split per server, running and stopped servers">
+</p>
 
 ---
 
@@ -38,6 +42,8 @@ Foyer turns any Windows or Linux machine into a game server host, without config
 
 - **One-click install**: downloads the game server and its runtime, ready to launch.
 - **Full lifecycle**: start, stop, restart with graceful shutdown and process-tree cleanup.
+- **Plugins**: browse Modrinth from the app, filter by category, sort by popularity or date, install, toggle and remove Paper plugins.
+- **Shaders**: browse Modrinth shaders and share them with your players.
 - **Live console**: real-time logs and command input over WebSocket.
 - **Monitoring**: per-server CPU and memory, host CPU, RAM and disk.
 - **Resilience**: auto-start at boot, auto-restart on crash (3 attempts per 10 min).
@@ -45,6 +51,19 @@ Foyer turns any Windows or Linux machine into a game server host, without config
 - **Firewall handled**: ports opened and closed automatically.
 - **Secure by default**: HTTPS with a pinned self-signed certificate, bearer token on every route.
 - **Remote or local**: manage the host from another PC, or directly on the server itself.
+
+## Screenshots
+
+> The interface is currently in French. English and Spanish are planned.
+
+| | |
+|---|---|
+| ![Server list](docs/screenshots/servers.png) | ![Live console](docs/screenshots/console.png) |
+| **Servers**: status, CPU and memory at a glance | **Live console**: logs and commands in real time |
+| ![Plugin browser](docs/screenshots/plugins.png) | ![Shader browser](docs/screenshots/shaders.png) |
+| **Plugins**: Modrinth catalog with filters and pages | **Shaders**: pick one for your players |
+| ![New server wizard](docs/screenshots/new-server.png) | ![Settings](docs/screenshots/settings.png) |
+| **New server**: game, version, done | **Settings**: app, updates, machine |
 
 ## Architecture
 
@@ -119,7 +138,11 @@ npx vite
 
 ## Roadmap
 
-Next up: polished visuals and installer, file manager and backups, player management, mods and plugins, then more games. See [docs/PLAN.md](docs/PLAN.md) and [ROADMAP.md](ROADMAP.md).
+Next up: backups and scheduled tasks, player management, traffic analytics, mods, then more games. See [docs/PLAN.md](docs/PLAN.md) and [ROADMAP.md](ROADMAP.md).
+
+## Contributing
+
+Bug reports and ideas are welcome in [Issues](https://github.com/arayan48/foyer/issues). For code, open a pull request against `main`; UI text is written in French for now.
 
 ## License
 
