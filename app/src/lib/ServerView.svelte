@@ -120,7 +120,7 @@
   .tabs button:focus-visible { outline-offset: -2px; }
   .soon-tab { opacity: 0.7; }
   .page { max-width: 820px; animation: in 220ms var(--ease); }
-  #page:has(:global(.console)) .page { max-width: none; }
+  #page:has(:global(.console)) .page, #page:has(:global(.catalog)) .page { max-width: none; }
   @keyframes in { from { opacity: 0; translate: 0 4px; } }
   @media (prefers-reduced-motion: reduce) { .page { animation: none; } }
 </style>

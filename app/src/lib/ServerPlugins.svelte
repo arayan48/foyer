@@ -133,11 +133,11 @@
   {/if}
 
   {#if s.loading && !s.hits}
-    <div class="grid">{#each Array(6) as _}<div class="tile skel"></div>{/each}</div>
+    <div class="grid catalog">{#each Array(8) as _}<div class="tile skel"></div>{/each}</div>
   {:else if s.hits?.length === 0}
     <div class="empty"><Search size={20} /><p>Rien trouvé. Essaie un autre mot ou une autre catégorie.</p></div>
   {:else if s.hits}
-    <div class="grid" class:dim={s.loading}>
+    <div class="grid catalog" class:dim={s.loading}>
       {#each s.hits as h (h.id)}
         <article class="tile">
           <div class="top">
@@ -243,7 +243,7 @@
   .cat[aria-pressed='true'] { background: var(--primary-soft); border-color: oklch(0.75 0.15 52 / 0.4); color: var(--primary); }
   .count { color: var(--faint); font-size: 0.82rem; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 12px; transition: opacity 150ms; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; transition: opacity 150ms; }
   .grid.dim { opacity: 0.5; pointer-events: none; }
   .tile { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line-soft); box-shadow: var(--shadow); transition: border-color 150ms, translate 200ms var(--ease); }
   .tile:hover { border-color: var(--line); translate: 0 -1px; }
