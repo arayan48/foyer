@@ -244,16 +244,16 @@
   legend { color: var(--muted); font-size: 0.89rem; margin-bottom: 6px; }
   .games { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
   .game {
-    display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r); cursor: pointer;
-    background: var(--surface); border: 1px solid var(--line); transition: border-color 150ms var(--ease), background 150ms;
+    display: flex; align-items: center; gap: 12px; padding: 8px 4px; cursor: pointer;
+    background: none; border: 0; opacity: 0.6; transition: opacity 150ms var(--ease);
   }
-  .game:hover { background: var(--surface-2); }
-  .game.on { border-color: var(--primary); background: var(--primary-soft); }
+  .game:hover { opacity: 0.85; }
+  .game.on { opacity: 1; }
+  .game.on strong { color: var(--primary); }
   .game input { position: absolute; opacity: 0; pointer-events: none; }
-  .game:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .game:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--r); }
   .game .min { font-size: 0.78rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
-  .game.off { opacity: 0.5; cursor: not-allowed; }
-  .game.off:hover { background: none; }
+  .game.off, .game.off:hover { opacity: 0.35; cursor: not-allowed; }
   .game > span { display: grid; }
   .game small { color: var(--muted); font-size: 0.85rem; }
   .steps { margin: 0 0 24px; display: grid; gap: 8px; max-width: 560px; }

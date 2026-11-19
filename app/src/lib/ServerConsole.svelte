@@ -186,6 +186,8 @@
     .players { max-height: none; }
   }
   @container (max-width: 520px) { .count { display: none; } .search { margin-left: auto; } .search input { width: 80px; } }
+  /* la console reste sombre en thème clair : on lui redonne les jetons du thème sombre */
+  :global([data-theme='light']) .console { --ink: #f5ead8; --muted: rgb(245 234 216 / 0.68); --faint: rgb(245 234 216 / 0.48); --line: rgb(245 234 216 / 0.08); --line-soft: rgb(245 234 216 / 0.05); --surface-2: #322e2c; --hover: #3b3734; --ok: #95a676; --warn: oklch(0.83 0.12 80); --err: oklch(0.7 0.16 28); color: var(--ink); }
   .console { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; border-radius: var(--r); overflow: hidden; background: oklch(0.12 0.008 50); border: 1px solid var(--line); }
   .bar { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
   .count { color: var(--faint); margin-right: auto; white-space: nowrap; }

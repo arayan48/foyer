@@ -1,5 +1,5 @@
 <script lang="ts">
-  import wordmark from './assets/wordmark.svg'
+  import wordmark from './assets/wordmark.svg?raw'
   import { LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon, Activity, Users, Archive, CalendarClock, ScrollText, Globe, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
   import Logo from './lib/Logo.svelte'
   import GithubMark from './lib/GithubMark.svelte'
@@ -110,7 +110,7 @@
 {:else}
   <div class="shell">
     <nav>
-      <div class="brand"><Logo size={32} /><img src={wordmark} alt="Foyer" height="17" /></div>
+      <div class="brand"><Logo size={32} /><span class="word" role="img" aria-label="Foyer">{@html wordmark}</span></div>
       <p class="group">Général</p>
       <button class="nav-item" class:on={view.name === 'home'} aria-current={view.name === 'home' ? 'page' : undefined} onclick={() => (view = { name: 'home' })}>
         <LayoutDashboard size={17} /> Tableau de bord
@@ -170,6 +170,8 @@
 <style>
   .shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100%; }
   nav { background: var(--side); border-right: 1px solid var(--line-soft); padding: 18px 12px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  .word { display: flex; color: var(--ink); }
+  .word :global(svg) { height: 17px; width: auto; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.07rem; letter-spacing: -0.01em; padding: 0 8px 18px; color: var(--ink); }
   .group { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 14px 10px 6px; }
   .group:first-of-type { padding-top: 4px; }
@@ -200,7 +202,7 @@
   @media (max-width: 860px) {
     .shell { grid-template-columns: 64px minmax(0, 1fr); }
     nav { padding: 14px 8px; align-items: center; }
-    .brand img, .group, .n, .machine, .host { display: none; }
+    .brand .word, .group, .n, .machine, .host { display: none; }
     .brand { padding: 0 0 12px; }
     .nav-item { width: 44px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
     .links { flex-direction: column; border-top: 0; }
