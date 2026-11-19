@@ -105,8 +105,11 @@
   <h1>Nouveau serveur</h1>
 </header>
 
-<div class="steps" role="progressbar" aria-label="Progression" aria-valuemin="1" aria-valuemax={steps.length} aria-valuenow={step + 1} aria-valuetext={`Étape ${step + 1} sur ${steps.length} : ${current}`}>
-  {#each steps as _, i}<span class:done={i <= step}></span>{/each}
+<div class="steps">
+  <div class="steps-label"><span>{current}</span><span class="steps-count">{step + 1} / {steps.length}</span></div>
+  <div class="track" role="progressbar" aria-label="Progression" aria-valuemin="1" aria-valuemax={steps.length} aria-valuenow={step + 1} aria-valuetext={`Étape ${step + 1} sur ${steps.length} : ${current}`}>
+    <div class="fill" style:width={`${((step + 1) / steps.length) * 100}%`}></div>
+  </div>
 </div>
 
 <form onsubmit={submit}>
@@ -250,9 +253,12 @@
   .game:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
   .game span { display: grid; }
   .game small { color: var(--muted); font-size: 0.85rem; }
-  .steps { display: flex; gap: 6px; margin: 0 0 24px; }
-  .steps span { flex: 1; height: 4px; border-radius: 2px; background: var(--line); transition: background 0.2s; }
-  .steps span.done { background: var(--primary); }
+  .steps { margin: 0 0 24px; display: grid; gap: 8px; max-width: 560px; }
+  .steps-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--ink); }
+  .steps-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .track { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .fill { height: 100%; border-radius: inherit; background: var(--primary); transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
   .recap { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
   .recap dt { color: var(--muted); }
   .recap dd { margin: 0; }
