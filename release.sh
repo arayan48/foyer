@@ -70,4 +70,7 @@ gh release create "v$V" --repo "$REPO" --title "Foyer $V" --notes "$NOTES" \
 # Mac : construit sur une machine Mac de GitHub, ajouté à la release en ~10 min
 gh workflow run mac.yml --repo "$REPO" -f tag="v$V"
 cp "$OUT/Foyer-Serveur.exe" "$HOME/Downloads/Foyer Serveur.exe"; cp "$OUT/Foyer-Client.exe" "$HOME/Downloads/Foyer Client.exe"
+# Site : un push sur foyer-site lance le déploiement Coolify (webhook GitHub), qui relit les releases
+SITE="$ROOT/../foyer-site"
+git -C "$SITE" commit -q --allow-empty -m "Version $V" && git -C "$SITE" push -q origin main && echo "Site : redéploiement lancé" || echo "Site : à redéployer à la main"
 echo "Publié : https://github.com/$REPO/releases/tag/v$V"
