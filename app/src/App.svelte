@@ -1,6 +1,6 @@
 <script lang="ts">
   import wordmark from './assets/wordmark.svg?raw'
-  import { LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon, Activity, Users, Archive, CalendarClock, ScrollText, Globe, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
+  import { LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon, Activity, Users, Archive, CalendarClock, ScrollText, Globe, BookOpen, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
   import Logo from './lib/Logo.svelte'
   import GithubMark from './lib/GithubMark.svelte'
   import ServerSoon from './lib/ServerSoon.svelte'
@@ -137,7 +137,8 @@
         </button>
         <div class="links">
           <a class="ext" href="https://github.com/arayan48/foyer" target="_blank" rel="noreferrer" aria-label="Code source sur GitHub" title="GitHub"><GithubMark size={16} /></a>
-          <span class="ext off" title="Site web : bientôt" aria-label="Site web, bientôt disponible"><Globe size={16} /></span>
+          <a class="ext" href="https://foyer.cfd/guides" target="_blank" rel="noreferrer" aria-label="Documentation" title="Documentation"><BookOpen size={16} /></a>
+          <a class="ext" href="https://foyer.cfd" target="_blank" rel="noreferrer" aria-label="Site web de Foyer" title="Site web"><Globe size={16} /></a>
           <span class="host" title={address}>{address}</span>
         </div>
       </div>
