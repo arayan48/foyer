@@ -1,0 +1,30 @@
+# Construit l'appli Mac (universelle) et l'ajoute à une release existante.
+name: Mac
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release (ex. v0.4.6)
+        required: true
+permissions:
+  contents: write
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - working-directory: app
+        run: |
+          npm ci
+          npx tauri build --target universal-apple-darwin --bundles dmg --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg Foyer-Mac.dmg
+          gh release upload "${{ inputs.tag }}" Foyer-Mac.dmg --clobber
