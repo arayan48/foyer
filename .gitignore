@@ -9,3 +9,8 @@ graphify-out/cache/
 *.key
 *.pem
 *.log
+
+# infos locales (machines, clés, chemins) : seul l'exemple est publié
+release.sh
+CLAUDE.md
+graphify-out/

@@ -76,7 +76,7 @@
     <p class="lead">Entre l'adresse de la machine où tourne l'agent Foyer, et son jeton.</p>
     <label class="field">
       <span>Adresse</span>
-      <input class="input" bind:value={url} placeholder="192.168.1.240" required autocomplete="off" spellcheck="false" />
+      <input class="input" bind:value={url} placeholder="192.168.1.10" required autocomplete="off" spellcheck="false" />
     </label>
     <label class="field">
       <span>Jeton</span>

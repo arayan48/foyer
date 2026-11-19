@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Exemple : copier en release.sh (ignoré par git), adapter la machine de build et la clé SSH.
 # Publie une version : ./release.sh 0.2.0 "Ce qui change"
 # Compile sur la machine de build (Linux + cargo-xwin), signe, puis crée la release GitHub.
 # Les applis installées la voient dans les 6 h (ou au prochain lancement) et proposent la mise à jour.
@@ -6,8 +7,8 @@ set -euo pipefail
 
 V="${1:?version, ex. 0.2.0}"
 NOTES="${2:-Version $V}"
-BUILD="${FOYER_BUILD:-rayan@192.168.1.244}"
-SSH=(ssh -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes)
+BUILD="${FOYER_BUILD:-utilisateur@machine-de-build}"
+SSH=(ssh -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes)
 REPO="arayan48/foyer"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/dist/v$V"
@@ -35,16 +36,16 @@ EOF
 
 mkdir -p "$OUT"
 N=/srv/foyer/app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$N/Foyer_${V}_x64-setup.exe" "$OUT/Foyer-Client.exe"
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$N/Foyer_${V}_x64-setup.exe.sig" "$OUT/Foyer-Client.exe.sig"
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$N/Foyer\\ Serveur_${V}_x64-setup.exe" "$OUT/Foyer-Serveur.exe"
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$N/Foyer\\ Serveur_${V}_x64-setup.exe.sig" "$OUT/Foyer-Serveur.exe.sig"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:$N/Foyer_${V}_x64-setup.exe" "$OUT/Foyer-Client.exe"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:$N/Foyer_${V}_x64-setup.exe.sig" "$OUT/Foyer-Client.exe.sig"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:$N/Foyer\\ Serveur_${V}_x64-setup.exe" "$OUT/Foyer-Serveur.exe"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:$N/Foyer\\ Serveur_${V}_x64-setup.exe.sig" "$OUT/Foyer-Serveur.exe.sig"
 
 L=/srv/foyer/app/src-tauri/target/release/bundle
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$L/deb/Foyer_${V}_amd64.deb" "$OUT/Foyer-Client-Linux.deb"
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$L/appimage/Foyer_${V}_amd64.AppImage" "$OUT/Foyer-Client-Linux.AppImage"
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:$L/appimage/Foyer_${V}_amd64.AppImage.sig" "$OUT/Foyer-Client-Linux.AppImage.sig"
-scp -q -i "$HOME/.ssh/claude_box" -o IdentitiesOnly=yes "$BUILD:/srv/foyer/agent/target/release/foyer-agent" "$OUT/foyer-agent-linux"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:$L/deb/Foyer_${V}_amd64.deb" "$OUT/Foyer-Client-Linux.deb"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:$L/appimage/Foyer_${V}_amd64.AppImage" "$OUT/Foyer-Client-Linux.AppImage"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:$L/appimage/Foyer_${V}_amd64.AppImage.sig" "$OUT/Foyer-Client-Linux.AppImage.sig"
+scp -q -i "$HOME/.ssh/ma_cle" -o IdentitiesOnly=yes "$BUILD:/srv/foyer/agent/target/release/foyer-agent" "$OUT/foyer-agent-linux"
 
 # manifestes lus par le module de mise à jour
 for kind in Client Serveur; do
