@@ -452,6 +452,48 @@ async fn download(url: &str, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Recherche de plugins Paper sur Modrinth, compatibles avec la version de Minecraft si connue.
+pub async fn plugin_search(q: &str, mc: Option<&str>) -> Result<Vec<Value>> {
+    let mut facets = vec![r#"["project_type:plugin"]"#.to_string(), r#"["categories:paper"]"#.to_string()];
+    if let Some(mc) = mc {
+        facets.push(serde_json::json!([format!("versions:{mc}")]).to_string());
+    }
+    let facets = format!("[{}]", facets.join(","));
+    let r: Value = client().get("https://api.modrinth.com/v2/search")
+        .query(&[("query", q), ("facets", &facets), ("limit", "20")])
+        .send().await?.error_for_status()?.json().await?;
+    Ok(r["hits"].as_array().cloned().unwrap_or_default().into_iter().map(|h| serde_json::json!({
+        "id": h["project_id"], "title": h["title"], "description": h["description"],
+        "author": h["author"], "downloads": h["downloads"], "icon": h["icon_url"],
+    })).collect())
+}
+
+/// Télécharge la dernière version compatible d'un plugin Modrinth dans `dir`. Renvoie le nom du fichier.
+pub async fn plugin_install(project: &str, mc: Option<&str>, dir: &Path) -> Result<String> {
+    if project.is_empty() || !project.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        bail!("plugin inconnu");
+    }
+    let mut q = vec![("loaders", r#"["paper"]"#.to_string())];
+    if let Some(mc) = mc {
+        q.push(("game_versions", serde_json::json!([mc]).to_string()));
+    }
+    let v: Value = client().get(format!("https://api.modrinth.com/v2/project/{project}/version"))
+        .query(&q).send().await?.error_for_status()?.json().await?;
+    let files = v[0]["files"].as_array().filter(|f| !f.is_empty())
+        .ok_or_else(|| anyhow!("aucune version de ce plugin pour Minecraft {}", mc.unwrap_or("?")))?;
+    let f = files.iter().find(|f| f["primary"] == true).unwrap_or(&files[0]);
+    let name = f["filename"].as_str().filter(|n| plugin_file_ok(n)).ok_or_else(|| anyhow!("fichier du plugin invalide"))?;
+    let url = f["url"].as_str().ok_or_else(|| anyhow!("pas d'URL de téléchargement"))?;
+    tokio::fs::create_dir_all(dir).await?;
+    download(url, &dir.join(name)).await?;
+    Ok(name.to_string())
+}
+
+/// Nom de fichier de plugin sans chemin : `x.jar` ou `x.jar.disabled`.
+pub fn plugin_file_ok(n: &str) -> bool {
+    !n.starts_with('.') && !n.contains(['/', '\\', ':']) && !n.contains("..") && (n.ends_with(".jar") || n.ends_with(".jar.disabled"))
+}
+
 /// `tar` (bsdtar sous Windows) sait lire zip, tar.gz et tar.xz.
 async fn extract(file: &Path, to: &Path) -> Result<()> {
     tokio::fs::create_dir_all(to).await?;
@@ -489,6 +531,13 @@ mod tests {
     fn set_props_keeps_rest() {
         let r = super::set_props("#c\nmotd=hi\nserver-port=1\n", &[("server-port", "2"), ("query.port", "2")]);
         assert_eq!(r, "#c\nmotd=hi\nserver-port=2\nquery.port=2\n");
+    }
+
+    #[test]
+    fn noms_de_plugins() {
+        use super::plugin_file_ok as ok;
+        assert!(ok("LuckPerms-5.4.jar") && ok("a.jar.disabled"));
+        assert!(!ok("../a.jar") && !ok("a/b.jar") && !ok("a\\b.jar") && !ok("a.txt") && !ok(".jar"));
     }
 
     #[test]

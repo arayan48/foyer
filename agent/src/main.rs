@@ -169,6 +169,9 @@ async fn main() -> Result<()> {
         .route("/api/servers/{id}", axum::routing::delete(remove).patch(update))
         .route("/api/servers/{id}/{action}", post(action))
         .route("/api/servers/{id}/console", get(console))
+        .route("/api/servers/{id}/plugins", get(plugins).post(plugin_add))
+        .route("/api/servers/{id}/plugins/search", get(plugin_search))
+        .route("/api/servers/{id}/plugins/{file}", axum::routing::delete(plugin_del).patch(plugin_toggle))
         .layer(middleware::from_fn_with_state(app.clone(), auth))
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(app);
@@ -437,6 +440,78 @@ async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> StatusCode {
     #[cfg(target_os = "linux")]
     limits::linux::remove(&id);
     StatusCode::NO_CONTENT
+}
+
+type Err = (StatusCode, String);
+
+/// Dossier plugins et version de Minecraft (« Paper 1.21.11 » → « 1.21.11 ») d'un serveur Minecraft.
+async fn mc_plugins(app: &App, id: &str) -> Result<(PathBuf, Option<String>), Err> {
+    let s = app.servers.lock().await.iter().find(|s| s.id == id).cloned().ok_or((StatusCode::NOT_FOUND, "serveur inconnu".into()))?;
+    if s.game != Game::Minecraft {
+        return Err((StatusCode::BAD_REQUEST, "Plugins réservés à Minecraft".into()));
+    }
+    let mc = s.version.as_deref().and_then(|v| v.strip_prefix("Paper ")).map(str::to_string);
+    Ok((app.data.join("servers").join(id).join("plugins"), mc))
+}
+
+#[derive(Serialize)]
+struct Plugin { file: String, enabled: bool, size: u64 }
+
+async fn plugins(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<Vec<Plugin>>, Err> {
+    let (dir, _) = mc_plugins(&app, &id).await?;
+    let mut out = Vec::new();
+    if let Ok(mut rd) = tokio::fs::read_dir(&dir).await {
+        while let Ok(Some(e)) = rd.next_entry().await {
+            let file = e.file_name().to_string_lossy().into_owned();
+            if games::plugin_file_ok(&file) {
+                let size = e.metadata().await.map(|m| m.len()).unwrap_or(0);
+                out.push(Plugin { enabled: file.ends_with(".jar"), file, size });
+            }
+        }
+    }
+    out.sort_by_key(|p| p.file.to_lowercase());
+    Ok(Json(out))
+}
+
+#[derive(Deserialize)]
+struct Q { #[serde(default)] q: String }
+
+async fn plugin_search(State(app): S, UrlPath(id): UrlPath<String>, axum::extract::Query(q): axum::extract::Query<Q>) -> Result<Json<Vec<serde_json::Value>>, Err> {
+    let (_, mc) = mc_plugins(&app, &id).await?;
+    games::plugin_search(&q.q, mc.as_deref()).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("Modrinth : {e:#}")))
+}
+
+#[derive(Deserialize)]
+struct AddPlugin { project: String }
+
+async fn plugin_add(State(app): S, UrlPath(id): UrlPath<String>, Json(b): Json<AddPlugin>) -> Result<Json<String>, Err> {
+    let (dir, mc) = mc_plugins(&app, &id).await?;
+    games::plugin_install(&b.project, mc.as_deref(), &dir).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:#}")))
+}
+
+#[derive(Deserialize)]
+struct Toggle { enabled: bool }
+
+async fn plugin_toggle(State(app): S, UrlPath((id, file)): UrlPath<(String, String)>, Json(t): Json<Toggle>) -> Result<StatusCode, Err> {
+    let (dir, _) = mc_plugins(&app, &id).await?;
+    if !games::plugin_file_ok(&file) {
+        return Err((StatusCode::BAD_REQUEST, "fichier invalide".into()));
+    }
+    let base = file.trim_end_matches(".disabled");
+    let to = if t.enabled { base.to_string() } else { format!("{base}.disabled") };
+    if to != file {
+        tokio::fs::rename(dir.join(&file), dir.join(&to)).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn plugin_del(State(app): S, UrlPath((id, file)): UrlPath<(String, String)>) -> Result<StatusCode, Err> {
+    let (dir, _) = mc_plugins(&app, &id).await?;
+    if !games::plugin_file_ok(&file) {
+        return Err((StatusCode::BAD_REQUEST, "fichier invalide".into()));
+    }
+    tokio::fs::remove_file(dir.join(&file)).await.map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn action(State(app): S, UrlPath((id, action)): UrlPath<(String, String)>) -> Result<StatusCode, (StatusCode, String)> {

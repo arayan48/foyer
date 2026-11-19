@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Play, Square, RotateCw, Terminal, SlidersHorizontal, Network, Package, KeyRound, FileCog, Users, FolderOpen, Archive } from 'lucide-svelte'
+  import { ArrowLeft, Play, Square, RotateCw, Terminal, SlidersHorizontal, Network, Package, KeyRound, FileCog, Users, FolderOpen, Archive, Puzzle } from 'lucide-svelte'
   import GameMark from './GameMark.svelte'
   import ServerConsole from './ServerConsole.svelte'
   import ServerGeneral from './ServerGeneral.svelte'
@@ -7,6 +7,7 @@
   import ServerVersion from './ServerVersion.svelte'
   import ServerFivem from './ServerFivem.svelte'
   import ServerProperties from './ServerProperties.svelte'
+  import ServerPlugins from './ServerPlugins.svelte'
   import ServerSoon from './ServerSoon.svelte'
   import { GAMES, STATUS, type Conn, type Server } from './api'
 
@@ -26,6 +27,7 @@
     { id: 'network', label: 'Réseau', icon: Network },
     { id: 'version', label: 'Version', icon: Package },
     mc ? { id: 'properties', label: 'Propriétés', icon: FileCog } : { id: 'fivem', label: 'FiveM', icon: KeyRound },
+    ...(mc ? [{ id: 'plugins', label: 'Plugins', icon: Puzzle }] : []),
     { id: 'players', label: 'Joueurs', icon: Users, soon: true },
     { id: 'files', label: 'Fichiers', icon: FolderOpen, soon: true },
     { id: 'backups', label: 'Sauvegardes', icon: Archive, soon: true },
@@ -84,6 +86,8 @@
         <ServerFivem {server} {address} />
       {:else if tab === 'properties'}
         <ServerProperties />
+      {:else if tab === 'plugins'}
+        <ServerPlugins {conn} {server} />
       {:else if tab === 'players'}
         <ServerSoon icon={Users} title="Joueurs" text={mc ? 'Voir qui est connecté, expulser, bannir, donner les droits d\'opérateur et gérer la liste blanche.' : 'Voir qui est connecté, expulser et bannir. En attendant, txAdmin le fait déjà.'} version="v0.5" />
       {:else if tab === 'files'}

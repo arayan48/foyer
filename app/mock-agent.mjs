@@ -6,6 +6,7 @@ const servers = [
   { id: 'b2', name: 'RP Los Santos', game: 'fivem', port: 30120, ram_mb: 4096, status: 'stopped', cpu: 0, mem: 0, admin_port: 40120, version: 'Build 17000', auto_start: true, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
   { id: 'c3', name: 'Créatif', game: 'minecraft', port: 25566, ram_mb: 2048, status: 'installing', cpu: 0, mem: 0, admin_port: null, auto_start: false, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
 ]
+const plugins = [{ file: 'EssentialsX-2.21.jar', enabled: true, size: 3.2e6 }, { file: 'Dynmap-3.7.jar.disabled', enabled: false, size: 8e6 }]
 const sys = { name: 'WIN-RVSDEAUH9KJ', os: 'Windows Server 2025 Standard', cpu: 18, mem_used: 6.1e9, mem_total: 17.1e9, disk_free: 4.6e11, disk_total: 5e11, cores: 4, threads: 8, cpu_model: 'Intel(R) Xeon(R) E-2236 CPU @ 3.40GHz', arch: 'x86_64', kernel: '26100', uptime: 412345, agent: '0.2.0' }
 
 http.createServer((q, r) => {
@@ -29,6 +30,16 @@ http.createServer((q, r) => {
     })
   }
   if (q.url === '/api/servers') return json(servers.map((s) => (s.status === 'running' ? { ...s, cpu: 15 + Math.random() * 20 } : s)))
+  const pl = q.url.match(/^\/api\/servers\/(\w+)\/plugins(?:\/(.+))?$/)
+  if (pl) {
+    const f = pl[2] && decodeURIComponent(pl[2])
+    if (f?.startsWith('search')) return json([{ id: 'Vebnzrzj', title: 'LuckPerms', description: 'Gestion des permissions', author: 'Luck', downloads: 2400000, icon: null }, { id: '1u6JkXh5', title: 'WorldEdit', description: 'Éditeur de monde', author: 'EngineHub', downloads: 9100000, icon: null }])
+    if (q.method === 'POST') return plugins.push({ file: 'LuckPerms-5.4.jar', enabled: true, size: 1.4e6 }), json('LuckPerms-5.4.jar')
+    const i = plugins.findIndex((p) => p.file === f)
+    if (q.method === 'DELETE') return plugins.splice(i, 1), r.writeHead(204).end()
+    if (q.method === 'PATCH') return (plugins[i] = { ...plugins[i], enabled: !plugins[i].enabled, file: plugins[i].enabled ? f + '.disabled' : f.replace('.disabled', '') }), r.writeHead(204).end()
+    return json(plugins)
+  }
   const p = q.url.match(/^\/api\/servers\/(\w+)$/)
   if (p && q.method === 'DELETE') {
     const i = servers.findIndex((s) => s.id === p[1])
