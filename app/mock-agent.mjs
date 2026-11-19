@@ -33,7 +33,7 @@ http.createServer((q, r) => {
   const pl = q.url.match(/^\/api\/servers\/(\w+)\/plugins(?:\/(.+))?$/)
   if (pl) {
     const f = pl[2] && decodeURIComponent(pl[2])
-    if (f?.startsWith('search')) return json([{ id: 'Vebnzrzj', title: 'LuckPerms', description: 'Gestion des permissions', author: 'Luck', downloads: 2400000, icon: null }, { id: '1u6JkXh5', title: 'WorldEdit', description: 'Éditeur de monde', author: 'EngineHub', downloads: 9100000, icon: null }])
+    if (f?.startsWith('search')) return json({ total: 137, per_page: 20, hits: Array.from({ length: 20 }, (_, i) => ({ id: 'p' + i, title: ['LuckPerms', 'WorldEdit', 'EssentialsX', 'Chunky', 'CoreProtect'][i % 5] + (i > 4 ? ' ' + i : ''), description: 'Un plugin très utile pour ton serveur, avec une description assez longue pour tenir sur deux lignes.', author: 'Auteur', downloads: 9100000 / (i + 1), follows: 4200 / (i + 1), updated: new Date(Date.now() - i * 9e8).toISOString(), icon: null })) })
     if (q.method === 'POST') return plugins.push({ file: 'LuckPerms-5.4.jar', enabled: true, size: 1.4e6 }), json('LuckPerms-5.4.jar')
     const i = plugins.findIndex((p) => p.file === f)
     if (q.method === 'DELETE') return plugins.splice(i, 1), r.writeHead(204).end()

@@ -2,3 +2,10 @@ dist
 .DS_Store
 .claude/
 graphify-out/cache/
+
+# secrets et journaux : jamais dans le dépôt public
+.env
+.env.*
+*.key
+*.pem
+*.log

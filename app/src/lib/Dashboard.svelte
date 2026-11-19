@@ -177,7 +177,7 @@
           <span class="num">{Math.round(s.cpu)} % processeur</span>
           <span class="num">{bytes(s.mem)} / {bytes(s.ram_mb * MB)}</span>
           {#if s.status === 'running'}
-            <button class="btn icon" onclick={() => onaction(s, 'stop')} aria-label="Arrêter {s.name}"><Square size={14} /></button>
+            <button class="btn stop" onclick={() => onaction(s, 'stop')} aria-label="Arrêter {s.name}"><Square size={13} /> Arrêter</button>
           {:else}
             <span class="status">{STATUS[s.status]}</span>
           {/if}
@@ -190,11 +190,15 @@
 <!-- Arrêtés : une ligne compacte, juste de quoi relancer -->
 {#if down.length}
   <h2 class="title">À l'arrêt <span class="count">{down.length}</span></h2>
-  <div class="chips">
+  <div class="downs">
     {#each down as s (s.id)}
-      <div class="chip" class:err={s.status === 'error'}>
-        <button class="open" onclick={() => onopen(s)}>{s.name} <span class="meta">{STATUS[s.status]}</span></button>
-        <button class="btn icon" onclick={() => onaction(s, 'start')} aria-label="Démarrer {s.name}"><Play size={14} /></button>
+      <div class="down" class:err={s.status === 'error'}>
+        <button class="open" onclick={() => onopen(s)} aria-label="Ouvrir {s.name}">
+          <GameMark game={s.game} size={36} />
+          <span><strong>{s.name}</strong><span class="meta">{GAMES[s.game].label} · port {s.port}</span></span>
+        </button>
+        <span class="badge" class:err={s.status === 'error'}><i></i>{STATUS[s.status]}</span>
+        <button class="btn start" onclick={() => onaction(s, 'start')} aria-label="Démarrer {s.name}"><Play size={14} /> Démarrer</button>
       </div>
     {/each}
   </div>
@@ -215,7 +219,7 @@
   .grid > .card { margin-top: 0; }
   .chart { display: flex; flex-direction: column; }
   .chart svg { flex: 1; min-height: 80px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; animation: in 300ms var(--ease) both; }
+  .card { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 18px 20px; animation: in 300ms var(--ease) both; }
   .machine { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   .ram { grid-column: 1 / -1; }
 
@@ -257,7 +261,7 @@
   .disk.warn .num { color: var(--warn); }
 
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; animation: in 300ms var(--ease) both; }
+  .tile { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 14px; display: grid; gap: 8px; animation: in 300ms var(--ease) both; }
   .tile.skeleton { min-height: 140px; }
   .tile svg, .foot { padding-inline: 4px; }
   .tile svg { width: 100%; box-sizing: border-box; height: 36px; display: block; }
@@ -267,14 +271,21 @@
   .open > span { display: grid; min-width: 0; }
   .open strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .foot { display: flex; align-items: center; gap: 12px; }
-  .foot .btn { margin-left: auto; }
+  .foot .btn { margin-left: auto; height: 2rem; }
+  .stop:hover { border-color: var(--err); color: var(--err); }
+  .stop :global(svg) { fill: currentColor; }
   .status { margin-left: auto; color: var(--warn); font-size: 0.79rem; }
 
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { display: flex; align-items: center; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 2px 4px 2px 6px; }
-  .chip .open { gap: 6px; padding: 4px 8px; border-radius: 99px; }
-  .chip.err { border-color: var(--err); }
-  .chip.err .meta { color: var(--err); }
+  .downs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 10px; }
+  .down .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .down .open { min-width: 0; }
+  .down { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r); box-shadow: var(--shadow); transition: border-color 150ms; }
+  .down:hover { border-color: var(--line); }
+  .down .open { flex: 1; }
+  .down.err { border-color: oklch(0.7 0.18 25 / 0.5); }
+  .start { flex: none; }
+  .start:hover { border-color: var(--ok); color: var(--ok); }
+  .start :global(svg) { fill: currentColor; }
 
   @keyframes in { from { opacity: 0; translate: 0 6px; } }
   @media (prefers-reduced-motion: reduce) { .card, .tile { animation: none; } }

@@ -452,20 +452,31 @@ async fn download(url: &str, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Plugins par page dans la recherche.
+const PAGE: u32 = 20;
+
 /// Recherche de plugins Paper sur Modrinth, compatibles avec la version de Minecraft si connue.
-pub async fn plugin_search(q: &str, mc: Option<&str>) -> Result<Vec<Value>> {
+/// `sort` : relevance, downloads, follows, newest, updated. `page` commence à 0. `cat` : catégorie Modrinth ou vide.
+pub async fn plugin_search(q: &str, mc: Option<&str>, sort: &str, page: u32, cat: &str) -> Result<Value> {
+    let sort = if ["downloads", "follows", "newest", "updated"].contains(&sort) { sort } else { "relevance" };
     let mut facets = vec![r#"["project_type:plugin"]"#.to_string(), r#"["categories:paper"]"#.to_string()];
+    if !cat.is_empty() && cat.len() < 40 && cat.chars().all(|c| c.is_ascii_lowercase() || c == '-') {
+        facets.push(serde_json::json!([format!("categories:{cat}")]).to_string());
+    }
     if let Some(mc) = mc {
         facets.push(serde_json::json!([format!("versions:{mc}")]).to_string());
     }
     let facets = format!("[{}]", facets.join(","));
+    let (limit, offset) = (PAGE.to_string(), (page.min(500) * PAGE).to_string());
     let r: Value = client().get("https://api.modrinth.com/v2/search")
-        .query(&[("query", q), ("facets", &facets), ("limit", "20")])
+        .query(&[("query", q), ("facets", &facets), ("index", sort), ("limit", &limit), ("offset", &offset)])
         .send().await?.error_for_status()?.json().await?;
-    Ok(r["hits"].as_array().cloned().unwrap_or_default().into_iter().map(|h| serde_json::json!({
+    let hits: Vec<Value> = r["hits"].as_array().cloned().unwrap_or_default().into_iter().map(|h| serde_json::json!({
         "id": h["project_id"], "title": h["title"], "description": h["description"],
         "author": h["author"], "downloads": h["downloads"], "icon": h["icon_url"],
-    })).collect())
+        "follows": h["follows"], "updated": h["date_modified"], "categories": h["display_categories"],
+    })).collect();
+    Ok(serde_json::json!({ "hits": hits, "total": r["total_hits"], "per_page": PAGE }))
 }
 
 /// Télécharge la dernière version compatible d'un plugin Modrinth dans `dir`. Renvoie le nom du fichier.

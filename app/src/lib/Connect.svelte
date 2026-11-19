@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Flame, ShieldCheck } from 'lucide-svelte'
+  import { ShieldCheck } from 'lucide-svelte'
+  import Logo from './Logo.svelte'
   import { call, probe, inTauri, normalizeUrl, AuthError, type Conn } from './api'
 
   let { onconnect }: { onconnect: (c: Conn) => void } = $props()
@@ -70,7 +71,7 @@
     </div>
   {:else}
   <form class="form" onsubmit={submit}>
-    <div class="mark"><Flame size={22} /></div>
+    <div class="mark"><Logo size={44} /></div>
     <h1>Connexion à un serveur</h1>
     <p class="lead">Entre l'adresse de la machine où tourne l'agent Foyer, et son jeton.</p>
     <label class="field">
@@ -92,10 +93,7 @@
   .form { width: min(380px, 100%); display: grid; gap: 16px; }
   .fp { padding: 12px; border-radius: 8px; background: var(--surface-2); word-break: break-all; line-height: 1.6; font-size: 13px; }
   .row { display: flex; gap: 8px; justify-content: flex-end; }
-  .mark {
-    width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
-    background: oklch(0.72 0.18 357 / 0.14); color: var(--primary);
-  }
+  .mark { display: flex; }
   .lead { color: var(--muted); margin-top: -8px; }
   .mono { font-family: ui-monospace, 'SF Mono', Consolas, monospace; }
   .big { height: 40px; justify-content: center; margin-top: 4px; }

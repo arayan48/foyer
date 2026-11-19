@@ -1,6 +1,7 @@
 <script lang="ts">
   import { IdCard, Cpu, Power, TriangleAlert, Trash2 } from 'lucide-svelte'
   import SaveBar from './SaveBar.svelte'
+  import Confirm from './Confirm.svelte'
   import SubPages from './SubPages.svelte'
   import { call, patchServer, type Conn, type Host, type Server } from './api'
 
@@ -115,15 +116,11 @@
       <p class="lead">Actions définitives. Rien ne peut être annulé.</p>
       <div class="card danger">
         <div class="row">
-          {#if confirmDelete}
-            <div><strong>Supprimer « {server.name} » ?</strong><small>Le monde et tous les fichiers partent. Aucune sauvegarde n'est faite.</small></div>
-            <div class="val"><button class="btn" onclick={() => (confirmDelete = false)}>Annuler</button><button class="btn danger" onclick={() => ondelete(server)}><Trash2 size={14} /> Supprimer</button></div>
-          {:else}
-            <div><strong>Supprimer le serveur</strong><small>Efface le serveur, son monde et tous ses fichiers.</small></div>
-            <div class="val"><button class="btn danger" onclick={() => (confirmDelete = true)}><Trash2 size={14} /> Supprimer…</button></div>
-          {/if}
+          <div><strong>Supprimer le serveur</strong><small>Efface le serveur, son monde et tous ses fichiers.</small></div>
+          <div class="val"><button class="btn danger" onclick={() => (confirmDelete = true)}><Trash2 size={14} /> Supprimer…</button></div>
         </div>
       </div>
+      <Confirm bind:open={confirmDelete} title="Supprimer « {server.name} » ?" text="Le monde et tous les fichiers partent. Aucune sauvegarde n'est faite, c'est définitif." onconfirm={() => ondelete(server)} />
     {/if}
 </SubPages>
 
@@ -141,7 +138,7 @@
 
   .cores { display: flex; flex-wrap: wrap; gap: 6px; }
   .cores button { min-width: 34px; height: 30px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; cursor: pointer; }
-  .cores button:hover { color: var(--ink); border-color: oklch(0.42 0.012 357); }
+  .cores button:hover { color: var(--ink); border-color: oklch(0.42 0.012 265); }
   .cores button[aria-pressed='true'] { background: var(--primary); border-color: transparent; color: var(--primary-ink); }
   .cores .all { color: var(--primary); }
 

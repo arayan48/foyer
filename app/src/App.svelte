@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { Flame, LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon } from 'lucide-svelte'
+  import { LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon, Activity, Users, Archive, CalendarClock, ScrollText, Globe, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
+  import Logo from './lib/Logo.svelte'
+  import GithubMark from './lib/GithubMark.svelte'
+  import ServerSoon from './lib/ServerSoon.svelte'
   import Connect from './lib/Connect.svelte'
   import ServerList from './lib/ServerList.svelte'
   import Dashboard from './lib/Dashboard.svelte'
@@ -16,7 +19,17 @@
   let servers = $state<Server[]>([])
   let sys = $state<Host | null>(null)
   let loading = $state(true)
-  let view = $state<{ name: 'home' } | { name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'server'; id: string }>({ name: 'home' })
+  let view = $state<{ name: 'home' } | { name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'server'; id: string } | { name: 'soon'; id: string }>({ name: 'home' })
+
+  // pages prévues : visibles dès maintenant pour situer la suite
+  const SOON = [
+    { id: 'traffic', label: 'Trafic', icon: Activity, title: 'Analyse du trafic', text: 'Joueurs connectés dans le temps, heures de pointe, bande passante et latence par serveur.', version: '0.6' },
+    { id: 'players', label: 'Joueurs', icon: Users, title: 'Joueurs', text: 'Qui joue où, historique des connexions, bannissements et liste blanche au même endroit.', version: '0.6' },
+    { id: 'backups', label: 'Sauvegardes', icon: Archive, title: 'Sauvegardes', text: 'Copies automatiques des mondes, restauration en un clic.', version: '0.5' },
+    { id: 'tasks', label: 'Planification', icon: CalendarClock, title: 'Tâches planifiées', text: 'Redémarrage chaque nuit, annonces, sauvegardes à heure fixe.', version: '0.5' },
+    { id: 'logs', label: 'Journal', icon: ScrollText, title: 'Journal', text: "Tout ce qui s'est passé : démarrages, plantages, changements de réglages.", version: '0.6' },
+  ]
+  const soon = $derived(view.name === 'soon' ? SOON.find((p) => p.id === (view as { id: string }).id) : undefined)
   let toast = $state('')
   let toastTimer: ReturnType<typeof setTimeout>
 
@@ -96,31 +109,47 @@
 {:else}
   <div class="shell">
     <nav>
-      <div class="brand"><Flame size={18} /> Foyer</div>
+      <div class="brand"><Logo size={28} /><span>Foyer</span></div>
+      <p class="group">Général</p>
       <button class="nav-item" class:on={view.name === 'home'} aria-current={view.name === 'home' ? 'page' : undefined} onclick={() => (view = { name: 'home' })}>
-        <LayoutDashboard size={16} /> Tableau de bord
+        <LayoutDashboard size={17} /> Tableau de bord
       </button>
-      <button class="nav-item" class:on={view.name !== 'settings' && view.name !== 'home'} aria-current={view.name !== 'settings' && view.name !== 'home' ? 'page' : undefined} onclick={() => (view = { name: 'list' })}>
-        <ServerIcon size={16} /> Serveurs
+      <button class="nav-item" class:on={['list', 'new', 'server'].includes(view.name)} aria-current={['list', 'new', 'server'].includes(view.name) ? 'page' : undefined} onclick={() => (view = { name: 'list' })}>
+        <ServerIcon size={17} /> Serveurs <span class="n">{servers.length}</span>
       </button>
-      <button class="nav-item" class:on={view.name === 'settings'} aria-current={view.name === 'settings' ? 'page' : undefined} onclick={() => (view = { name: 'settings' })}>
-        <SettingsIcon size={16} /> Paramètres
-      </button>
-      <div class="machine">
+      <p class="group">Bientôt</p>
+      {#each SOON as p (p.id)}
+        <button class="nav-item later" class:on={soon?.id === p.id} aria-current={soon?.id === p.id ? 'page' : undefined} onclick={() => (view = { name: 'soon', id: p.id })}>
+          <p.icon size={17} /> {p.label}
+        </button>
+      {/each}
+      <div class="bottom">
         {#if sys}
-          <dl>
-            <dt>Processeur</dt><dd><span class="bar"><span style:width="{sys.cpu}%"></span></span>{Math.round(sys.cpu)} %</dd>
-            <dt>Mémoire</dt><dd><span class="bar"><span style:width="{(sys.mem_used / sys.mem_total) * 100}%"></span></span>{bytes(sys.mem_used)}</dd>
-            <dt>Disque</dt><dd><span class="bar"><span style:width="{(1 - sys.disk_free / sys.disk_total) * 100}%"></span></span>{bytes(sys.disk_free)} libres</dd>
-          </dl>
+          <div class="machine" aria-label="Machine">
+            <div class="m"><Cpu size={13} /><span class="bar"><span style:width="{sys.cpu}%"></span></span><span class="v">{Math.round(sys.cpu)} %</span></div>
+            <div class="m"><MemoryStick size={13} /><span class="bar"><span style:width="{(sys.mem_used / sys.mem_total) * 100}%"></span></span><span class="v">{bytes(sys.mem_used)}</span></div>
+            <div class="m"><HardDrive size={13} /><span class="bar"><span style:width="{(1 - sys.disk_free / sys.disk_total) * 100}%"></span></span><span class="v">{bytes(sys.disk_free)}</span></div>
+          </div>
         {/if}
+        <button class="nav-item" class:on={view.name === 'settings'} aria-current={view.name === 'settings' ? 'page' : undefined} onclick={() => (view = { name: 'settings' })}>
+          <SettingsIcon size={17} /> Paramètres
+        </button>
+        <div class="links">
+          <a class="ext" href="https://github.com/arayan48/foyer" target="_blank" rel="noreferrer" aria-label="Code source sur GitHub" title="GitHub"><GithubMark size={16} /></a>
+          <span class="ext off" title="Site web : bientôt" aria-label="Site web, bientôt disponible"><Globe size={16} /></span>
+          <span class="host" title={address}>{address}</span>
+        </div>
       </div>
     </nav>
     <main>
+      <div class="page">
       {#if view.name === 'settings'}
         <SettingsView conn={conn} {sys} onlogout={logout} />
       {:else if view.name === 'home'}
         <Dashboard {servers} {sys} {loading} onnew={() => (view = { name: 'new' })} onopen={(s) => (view = { name: 'server', id: s.id })} onaction={act} />
+      {:else if view.name === 'soon' && soon}
+        <header class="page-head"><h1>{soon.label}</h1></header>
+        <ServerSoon icon={soon.icon} title={soon.title} text={soon.text} version={soon.version} />
       {:else if view.name === 'new'}
         <NewServer conn={conn} {servers} oncancel={() => (view = { name: 'list' })} oncreated={(s) => { refresh(); view = { name: 'server', id: s.id } }} />
       {:else if view.name === 'server' && current}
@@ -128,6 +157,7 @@
       {:else}
         <ServerList {servers} {address} {loading} onnew={() => (view = { name: 'new' })} onopen={(s) => (view = { name: 'server', id: s.id })} onaction={act} />
       {/if}
+      </div>
     </main>
   </div>
 {/if}
@@ -137,28 +167,42 @@
 {#if toast}<div class="toast" role="status">{toast}</div>{/if}
 
 <style>
-  .shell { display: grid; grid-template-columns: 232px 1fr; height: 100%; }
-  nav { background: var(--side); border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; }
-  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1rem; padding: 4px 10px 18px; color: var(--ink); }
-  .brand :global(svg) { color: var(--primary); }
-  .nav-item { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; border: 0; background: none; color: var(--muted); cursor: pointer; text-align: left; transition: background 150ms, color 150ms; }
+  .shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100%; }
+  nav { background: var(--side); border-right: 1px solid var(--line-soft); padding: 18px 12px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.07rem; letter-spacing: -0.01em; padding: 0 8px 18px; color: var(--ink); }
+  .group { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 14px 10px 6px; }
+  .group:first-of-type { padding-top: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 11px; height: 2.4rem; padding: 0 10px; border-radius: var(--r-sm); border: 0; background: none; color: var(--muted); cursor: pointer; text-align: left; transition: background 150ms, color 150ms; }
   .nav-item:hover { background: var(--surface); color: var(--ink); }
-  .nav-item.on { background: var(--surface); color: var(--ink); }
-  .machine { margin-top: auto; display: grid; gap: 4px; }
-  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; margin: 10px 10px 12px; font-size: 0.79rem; }
-  dt { color: var(--muted); }
-  dd { margin: 0; display: grid; gap: 3px; font-variant-numeric: tabular-nums; color: var(--muted); }
-  .bar { height: 3px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
-  .bar span { display: block; height: 100%; background: var(--primary); transition: width 400ms var(--ease); }
-  main { overflow: auto; padding: 32px 40px; }
+  .nav-item.on { background: var(--surface-2); color: var(--ink); }
+  .nav-item.on :global(svg) { color: var(--primary); }
+  .nav-item.later { color: var(--faint); }
+  .nav-item.later:hover, .nav-item.later.on { color: var(--ink); }
+  .n { margin-left: auto; font-size: 0.75rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .bottom { margin-top: auto; padding-top: 16px; display: grid; gap: 4px; }
+  .machine { display: grid; gap: 8px; padding: 12px; margin-bottom: 6px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line-soft); }
+  .m { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; color: var(--faint); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+  .m .v { min-width: 4.2em; text-align: right; color: var(--muted); }
+  .bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--primary); border-radius: 2px; transition: width 400ms var(--ease); }
+  .links { display: flex; align-items: center; gap: 2px; padding: 8px 4px 0; margin-top: 6px; border-top: 1px solid var(--line-soft); }
+  .ext { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--r-sm); color: var(--muted); transition: background 150ms, color 150ms; }
+  a.ext:hover { background: var(--surface); color: var(--ink); }
+  .ext.off { opacity: 0.45; cursor: not-allowed; }
+  .host { margin-left: auto; font-size: 0.72rem; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+  main { overflow: auto; padding: 32px clamp(16px, 3vw, 48px); scrollbar-gutter: stable; }
+  /* contenu centré et borné : pas de lignes étirées sur 4K */
+  .page { max-width: 1440px; margin-inline: auto; }
+  .page-head { margin-bottom: 20px; }
   .toast { position: fixed; bottom: 20px; left: 50%; translate: -50% 0; z-index: var(--z-toast); background: var(--surface-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: var(--r); animation: up 200ms var(--ease); }
   @keyframes up { from { opacity: 0; translate: -50% 8px; } }
-  @media (max-width: 700px) {
-    .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-    nav { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
-    .brand { padding: 0 10px; }
-    .machine { margin: 0 0 0 auto; }
-    .machine > :not(.nav-item) { display: none; }
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 64px minmax(0, 1fr); }
+    nav { padding: 14px 8px; align-items: center; }
+    .brand span, .group, .n, .machine, .host { display: none; }
+    .brand { padding: 0 0 12px; }
+    .nav-item { width: 44px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
+    .links { flex-direction: column; border-top: 0; }
     main { padding: 20px 16px; }
   }
 </style>

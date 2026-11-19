@@ -90,15 +90,15 @@
   .facts strong { font-size: 1.125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
   .facts small { color: var(--muted); }
   .facts a { color: var(--primary); display: inline-flex; gap: 4px; align-items: center; font-weight: 600; text-decoration: none; }
-  .console { display: grid; grid-template-rows: auto 1fr auto; height: min(62vh, 640px); border-radius: var(--r); overflow: hidden; background: oklch(0.12 0.006 357); border: 1px solid var(--line); }
+  .console { display: grid; grid-template-rows: auto 1fr auto; height: min(62vh, 640px); border-radius: var(--r); overflow: hidden; background: oklch(0.12 0.006 265); border: 1px solid var(--line); }
   .bar { display: flex; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
   .dot { display: inline-flex; align-items: center; gap: 6px; }
   .dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
   .dot.on::before { background: var(--ok); }
-  pre { margin: 0; padding: 12px 14px; overflow: auto; font: 12.5px/1.55 ui-monospace, 'SF Mono', Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: oklch(0.88 0.005 357); }
+  pre { margin: 0; padding: 12px 14px; overflow: auto; font: 12.5px/1.55 ui-monospace, 'SF Mono', Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: oklch(0.88 0.005 265); }
   pre .sys { color: var(--primary); } pre .cmd { color: var(--ok); } pre .bad { color: var(--err); } pre .warn { color: var(--warn); }
   .console form { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-top: 1px solid var(--line); }
   .prompt { color: var(--primary); font-family: ui-monospace, monospace; }
   .console input { flex: 1; height: 42px; border: 0; background: none; font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 13px; outline: none; }
-  .console input::placeholder { color: oklch(0.62 0.01 357); }
+  .console input::placeholder { color: oklch(0.62 0.01 265); }
 </style>

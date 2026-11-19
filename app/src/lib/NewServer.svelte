@@ -32,7 +32,17 @@
   let catalogError = $state('')
   call<Catalog>(conn, '/api/catalog').then((c) => (catalog = c)).catch((e) => (catalogError = (e as Error).message))
 
-  let recommendedJava = $derived(catalog?.minecraft.find((v) => v.id === (version || catalog?.minecraft[0]?.id))?.java ?? 25)
+  // de la plus récente à la plus ancienne (l'agent les renvoie dans le désordre)
+  const vkey = (id: string) => id.split('.').map((n) => n.padStart(4, '0')).join('.')
+  let mcVersions = $derived([...(catalog?.minecraft ?? [])].sort((a, b) => vkey(b.id).localeCompare(vkey(a.id))))
+  let recommendedJava = $derived(mcVersions.find((v) => v.id === (version || mcVersions[0]?.id))?.java ?? 25)
+  // nom facultatif : minecraft1, fivem2… premier numéro libre
+  let autoName = $derived.by(() => {
+    const taken = new Set(servers.map((s) => s.name.toLowerCase()))
+    let n = 1
+    while (taken.has(`${game}${n}`)) n++
+    return `${game}${n}`
+  })
   let keyOk = $derived(/^[A-Za-z0-9_]*$/.test(licenseKey.trim()))
 
   // premier port libre à partir du port par défaut du jeu
@@ -66,6 +76,7 @@
       step++
       return
     }
+    name = name.trim() || autoName
     busy = true
     error = ''
     try {
@@ -122,16 +133,16 @@
       <label class="field">
         <span>Version de Minecraft</span>
         <select class="input" bind:value={version} disabled={!catalog}>
-          <option value="">Dernière stable{catalog ? ` (${catalog.minecraft[0]?.id})` : ''}</option>
-          {#each catalog?.minecraft ?? [] as v}<option value={v.id}>{v.id}</option>{/each}
+          <option value="">La plus récente{mcVersions[0] ? ` (${mcVersions[0].id})` : ''}</option>
+          {#each mcVersions as v}<option value={v.id}>{v.id}</option>{/each}
         </select>
         <small>Les joueurs doivent avoir la même version. Serveur Paper (plugins).</small>
       </label>
       <label class="field">
         <span>Java</span>
         <select class="input" bind:value={java}>
-          <option value={0}>Conseillé (Java {recommendedJava})</option>
-          {#each catalog?.java ?? [8, 11, 17, 21, 25] as j}<option value={j}>Java {j}{j === recommendedJava ? ' (conseillé)' : ''}</option>{/each}
+          <option value={0}>Automatique (Java {recommendedJava})</option>
+          {#each (catalog?.java ?? [8, 11, 17, 21, 25]).filter((j) => j !== recommendedJava) as j}<option value={j}>Java {j}</option>{/each}
         </select>
         {#if java && java < recommendedJava}<small class="warn">Trop ancien pour cette version : le serveur risque de ne pas démarrer.</small>{:else}<small>Téléchargé une fois, partagé entre serveurs.</small>{/if}
       </label>
@@ -192,8 +203,8 @@
     {/if}
   {:else}
     <label class="field">
-      <span>Nom</span>
-      <input class="input" bind:value={name} maxlength="60" required placeholder={game === 'minecraft' ? 'Survie entre potes' : 'RP de la ville'} />
+      <span>Nom <em>facultatif</em></span>
+      <input class="input" bind:value={name} maxlength="60" placeholder={autoName} />
     </label>
     <label class="field">
       <span>Mémoire réservée : {ram} Go</span>
@@ -202,7 +213,7 @@
     <dl class="recap">
       <dt>Jeu</dt><dd>{GAMES[game].label}</dd>
       {#if game === 'minecraft'}
-        <dt>Version</dt><dd>{version || 'Dernière stable'}, Java {java || recommendedJava}</dd>
+        <dt>Version</dt><dd>{version || mcVersions[0]?.id || 'La plus récente'}, Java {java || recommendedJava}</dd>
       {:else}
         <dt>Build</dt><dd>{channel}</dd>
         <dt>Mode</dt><dd>{txadmin ? 'txAdmin' : fwLabel[framework]}</dd>
@@ -221,7 +232,7 @@
   <div class="foot">
     <button type="button" class="btn" onclick={back}>{step === 0 ? 'Annuler' : 'Précédent'}</button>
     {#if last}
-      <button class="btn primary" disabled={busy || !name.trim() || !keyOk}>{busy ? 'Création…' : 'Créer et installer'}</button>
+      <button class="btn primary" disabled={busy || !keyOk}>{busy ? 'Création…' : 'Créer et installer'}</button>
     {:else}
       <button class="btn primary" disabled={!canNext}>Suivant</button>
     {/if}
@@ -238,7 +249,7 @@
     background: var(--surface); border: 1px solid var(--line); transition: border-color 150ms var(--ease), background 150ms;
   }
   .game:hover { background: var(--surface-2); }
-  .game.on { border-color: var(--primary); background: oklch(0.72 0.18 357 / 0.08); }
+  .game.on { border-color: var(--primary); background: var(--primary-soft); }
   .game input { position: absolute; opacity: 0; pointer-events: none; }
   .game:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
   .game span { display: grid; }
@@ -253,6 +264,7 @@
   .recap dt { color: var(--muted); }
   .recap dd { margin: 0; }
   .three { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .field em { font-style: normal; color: var(--faint); font-size: 0.85em; margin-left: 4px; }
   .field small { color: var(--muted); font-size: 0.85rem; }
   .field small.warn { color: var(--warn, oklch(0.75 0.15 70)); }
   input[type='range'] { accent-color: var(--primary); }

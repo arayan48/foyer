@@ -474,11 +474,11 @@ async fn plugins(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<Vec
 }
 
 #[derive(Deserialize)]
-struct Q { #[serde(default)] q: String }
+struct Q { #[serde(default)] q: String, #[serde(default)] sort: String, #[serde(default)] page: u32, #[serde(default)] cat: String }
 
-async fn plugin_search(State(app): S, UrlPath(id): UrlPath<String>, axum::extract::Query(q): axum::extract::Query<Q>) -> Result<Json<Vec<serde_json::Value>>, Err> {
+async fn plugin_search(State(app): S, UrlPath(id): UrlPath<String>, axum::extract::Query(q): axum::extract::Query<Q>) -> Result<Json<serde_json::Value>, Err> {
     let (_, mc) = mc_plugins(&app, &id).await?;
-    games::plugin_search(&q.q, mc.as_deref()).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("Modrinth : {e:#}")))
+    games::plugin_search(&q.q, mc.as_deref(), &q.sort, q.page, &q.cat).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("Modrinth : {e:#}")))
 }
 
 #[derive(Deserialize)]
