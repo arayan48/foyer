@@ -186,7 +186,7 @@
     .players { max-height: none; }
   }
   @container (max-width: 520px) { .count { display: none; } .search { margin-left: auto; } .search input { width: 80px; } }
-  .console { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; border-radius: var(--r); overflow: hidden; background: oklch(0.12 0.006 265); border: 1px solid var(--line); }
+  .console { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; border-radius: var(--r); overflow: hidden; background: oklch(0.12 0.008 50); border: 1px solid var(--line); }
   .bar { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
   .count { color: var(--faint); margin-right: auto; white-space: nowrap; }
   .dot { white-space: nowrap; }
@@ -197,7 +197,7 @@
   .search:focus-within { border-color: var(--primary); }
   .search input { width: 120px; border: 0; background: none; font-size: 0.8rem; outline: none; }
   .out { position: relative; min-height: 0; }
-  pre { height: 100%; box-sizing: border-box; margin: 0; padding: 12px 14px; overflow: auto; font: 12.5px/1.55 ui-monospace, 'SF Mono', Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: oklch(0.88 0.005 265); }
+  pre { height: 100%; box-sizing: border-box; margin: 0; padding: 12px 14px; overflow: auto; font: 12.5px/1.55 ui-monospace, 'SF Mono', Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: oklch(0.88 0.008 50); }
   pre .sys { color: var(--primary); } pre .cmd { color: var(--ok); } pre .bad { color: var(--err); } pre .warn { color: var(--warn); }
   .jump { position: absolute; right: 14px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--ink); font-size: 0.8rem; cursor: pointer; box-shadow: var(--shadow); }
   .jump:hover { background: var(--hover); }
@@ -205,7 +205,7 @@
   .prompt { color: var(--primary); font-family: ui-monospace, monospace; }
   .console input:not(.search input) { flex: 1; height: 42px; border: 0; background: none; font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 13px; outline: none; }
   .console input:disabled { cursor: not-allowed; }
-  .console input::placeholder { color: oklch(0.62 0.01 265); }
+  .console input::placeholder { color: oklch(0.62 0.008 50); }
   .players { display: grid; grid-template-rows: auto 1fr; min-height: 0; border-radius: 0; background: none; border: 0; overflow: hidden; }
   .players .bar { justify-content: space-between; padding-right: 14px; border-color: var(--line-soft); }
   .players ul { margin: 0; padding: 6px; list-style: none; overflow: auto; }

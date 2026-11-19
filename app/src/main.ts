@@ -1,4 +1,5 @@
-import '@fontsource-variable/inter'
+import '@fontsource-variable/figtree'
+import '@fontsource/unbounded/600.css'
 import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'

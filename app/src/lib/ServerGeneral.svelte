@@ -136,7 +136,7 @@
 
   .cores { display: flex; flex-wrap: wrap; gap: 6px; }
   .cores button { min-width: 34px; height: 30px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; cursor: pointer; }
-  .cores button:hover { color: var(--ink); border-color: oklch(0.42 0.012 265); }
+  .cores button:hover { color: var(--ink); border-color: oklch(0.42 0.008 50); }
   .cores button[aria-pressed='true'] { background: var(--primary); border-color: transparent; color: var(--primary-ink); }
   .cores .all { color: var(--primary); }
 

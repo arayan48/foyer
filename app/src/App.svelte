@@ -1,4 +1,5 @@
 <script lang="ts">
+  import wordmark from './assets/wordmark.svg'
   import { LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon, Activity, Users, Archive, CalendarClock, ScrollText, Globe, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
   import Logo from './lib/Logo.svelte'
   import GithubMark from './lib/GithubMark.svelte'
@@ -109,7 +110,7 @@
 {:else}
   <div class="shell">
     <nav>
-      <div class="brand"><Logo size={28} /><span>Foyer</span></div>
+      <div class="brand"><Logo size={32} /><img src={wordmark} alt="Foyer" height="17" /></div>
       <p class="group">Général</p>
       <button class="nav-item" class:on={view.name === 'home'} aria-current={view.name === 'home' ? 'page' : undefined} onclick={() => (view = { name: 'home' })}>
         <LayoutDashboard size={17} /> Tableau de bord
@@ -199,7 +200,7 @@
   @media (max-width: 860px) {
     .shell { grid-template-columns: 64px minmax(0, 1fr); }
     nav { padding: 14px 8px; align-items: center; }
-    .brand span, .group, .n, .machine, .host { display: none; }
+    .brand img, .group, .n, .machine, .host { display: none; }
     .brand { padding: 0 0 12px; }
     .nav-item { width: 44px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
     .links { flex-direction: column; border-top: 0; }

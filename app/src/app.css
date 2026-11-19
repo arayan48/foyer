@@ -1,26 +1,27 @@
-/* Foyer : sombre, braise rose. Une seule famille (Inter), échelle 1.125. */
+/* Foyer : charte 1.0. Figtree pour l'interface, Unbounded pour les titres. Échelle 1.125. */
 :root {
   color-scheme: dark;
-  /* graphite neutre, accent braise orangée : chaud sans saturer l'écran */
-  --bg: oklch(0.17 0.006 265);
-  --side: oklch(0.145 0.006 265);
-  --surface: oklch(0.205 0.007 265);
-  --surface-2: oklch(0.25 0.008 265);
-  --hover: oklch(0.285 0.009 265);
-  /* contours en transparence : à peine visibles, jamais gris plat */
-  --line: oklch(1 0 0 / 0.08);
-  --line-soft: oklch(1 0 0 / 0.05);
-  --ink: oklch(0.96 0.004 265);
-  --muted: oklch(0.72 0.012 265);
-  --faint: oklch(0.58 0.012 265);
-  --primary: oklch(0.75 0.15 52);
-  --primary-hover: oklch(0.8 0.14 55);
-  --primary-ink: oklch(0.2 0.04 50);
-  --primary-soft: oklch(0.75 0.15 52 / 0.12);
-  --ok: oklch(0.78 0.15 155);
-  --warn: oklch(0.83 0.14 85);
-  --err: oklch(0.7 0.18 25);
-  --shadow: 0 1px 0 oklch(1 0 0 / 0.05) inset, 0 12px 32px -16px oklch(0 0 0 / 0.55);
+  /* charte Foyer : encre (fond), terracotta (actions), crème (texte), sauge (en ligne) */
+  --bg: #201e1d;
+  --side: #1a1817;
+  --surface: #282524;
+  --surface-2: #322e2c;
+  --hover: #3b3734;
+  /* contours en transparence crème : à peine visibles, jamais gris plat */
+  --line: rgb(245 234 216 / 0.08);
+  --line-soft: rgb(245 234 216 / 0.05);
+  --ink: #f5ead8;
+  --muted: rgb(245 234 216 / 0.68);
+  --faint: rgb(245 234 216 / 0.48);
+  --primary: #c67139;
+  --primary-hover: #d27f47;
+  --primary-ink: #201e1d;
+  --primary-soft: rgb(198 113 57 / 0.14);
+  --ok: #95a676;
+  --warn: oklch(0.83 0.12 80);
+  --err: oklch(0.7 0.16 28);
+  --shadow: 0 1px 0 rgb(245 234 216 / 0.05) inset, 0 12px 32px -16px oklch(0 0 0 / 0.55);
+  --font-title: 'Unbounded', 'Figtree Variable', system-ui, sans-serif;
 
   --r: 14px;
   --r-sm: 9px;
@@ -30,14 +31,13 @@
   --z-modal: 30;
   --z-toast: 40;
 
-  font-family: 'Inter Variable', system-ui, sans-serif;
-  font-feature-settings: 'cv11', 'ss01';
+  font-family: 'Figtree Variable', system-ui, sans-serif;
   /* grandit un peu sur les grands écrans (4K à 100 %), reste lisible en petit */
   font-size: clamp(14px, 0.25vw + 10px, 16px);
   line-height: 1.5;
   color: var(--ink);
   /* lueur braise très légère en haut : donne de la profondeur sans blocs */
-  background: radial-gradient(1000px 420px at 75% -180px, oklch(0.75 0.15 52 / 0.07), transparent 70%) fixed, var(--bg);
+  background: radial-gradient(1000px 420px at 75% -180px, rgb(198 113 57 / 0.07), transparent 70%) fixed, var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -46,7 +46,7 @@
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; }
 h1, h2, h3 { margin: 0; font-weight: 600; text-wrap: balance; }
-h1 { font-size: 1.43rem; letter-spacing: -0.02em; }
+h1 { font-family: var(--font-title); font-size: 1.43rem; letter-spacing: -0.02em; }
 h2 { font-size: 1.125rem; }
 p { margin: 0; }
 button, input, select { font: inherit; color: inherit; }
@@ -118,7 +118,7 @@ input[type='range'] { accent-color: var(--primary); width: 100%; }
 
 /* Fenêtre de confirmation (remplace confirm() du navigateur) */
 .dialog { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); color: var(--ink); padding: 0; width: min(420px, calc(100vw - 32px)); box-shadow: 0 24px 64px -16px oklch(0 0 0 / 0.7); }
-.dialog::backdrop { background: oklch(0.1 0.01 265 / 0.6); backdrop-filter: blur(3px); }
+.dialog::backdrop { background: rgb(26 24 23 / 0.6); backdrop-filter: blur(3px); }
 .dialog[open] { animation: pop 180ms var(--ease); }
 @keyframes pop { from { opacity: 0; scale: 0.97; } }
 .badge { display: inline-flex; align-items: center; gap: 6px; height: 1.5rem; padding: 0 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500; background: var(--surface-2); color: var(--muted); }

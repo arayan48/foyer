@@ -87,8 +87,8 @@
   .name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .meta { color: var(--muted); font-size: 0.89rem; font-variant-numeric: tabular-nums; }
   .status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
-  .status i { width: 8px; height: 8px; border-radius: 50%; background: oklch(0.5 0.01 265); }
-  .status.running { color: var(--ok); } .status.running i { background: var(--ok); box-shadow: 0 0 0 3px oklch(0.78 0.16 152 / 0.18); }
+  .status i { width: 8px; height: 8px; border-radius: 50%; background: oklch(0.5 0.008 50); }
+  .status.running { color: var(--ok); } .status.running i { background: var(--ok); box-shadow: 0 0 0 3px rgb(149 166 118 / 0.2); }
   .status.starting i, .status.installing i, .status.stopping i { background: var(--warn); animation: pulse 1s infinite; }
   .status.starting, .status.installing, .status.stopping { color: var(--warn); }
   .status.error { color: var(--err); } .status.error i { background: var(--err); }
