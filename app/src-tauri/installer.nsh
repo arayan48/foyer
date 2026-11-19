@@ -9,6 +9,9 @@
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
+  ; Windows recharge les icônes (raccourcis à jour après changement de logo)
+  nsExec::Exec 'ie4uinit.exe -show'
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ; tâche déjà là = mise à jour : on redémarre l'agent sans reposer de question
   nsExec::Exec 'schtasks /Query /TN "Foyer Agent"'
   Pop $0

@@ -150,12 +150,12 @@
     </div>
 
   {:else if page === 'look'}
-    <h2>Apparence <span class="soon">Bientôt</span></h2>
+    <h2>Apparence</h2>
     <div class="card">
-      <label class="row"><div><strong>Thème</strong></div><select class="input" disabled><option>Sombre</option><option>Clair</option><option>Comme le système</option></select></label>
-      <label class="row"><div><strong>Couleur d'accent</strong></div><select class="input" disabled><option>Braise</option><option>Bleu</option><option>Vert</option></select></label>
+      <label class="row"><div><strong>Thème</strong></div><select class="input" bind:value={s.theme} onchange={() => applySettings(s)}><option value="dark">Sombre</option><option value="light">Clair</option><option value="system">Comme le système</option></select></label>
+      <label class="row"><div><strong>Couleur d'accent</strong></div><select class="input" bind:value={s.accent} onchange={() => applySettings(s)}><option value="braise">Braise</option><option value="bleu">Bleu</option><option value="vert">Vert</option></select></label>
       <div class="row"><div><strong>Zoom</strong><small>Dès maintenant : {mac ? '⌘' : 'Ctrl'} + et {mac ? '⌘' : 'Ctrl'} − pour agrandir ou réduire, {mac ? '⌘' : 'Ctrl'} 0 pour revenir à 100 %.</small></div></div>
-      <label class="row"><div><strong>Affichage compact</strong></div><input type="checkbox" class="switch" disabled /></label>
+      <label class="row"><div><strong>Affichage compact</strong><small>Bientôt</small></div><input type="checkbox" class="switch" disabled /></label>
     </div>
 
   {:else if page === 'notif'}
