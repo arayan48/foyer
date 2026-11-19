@@ -458,6 +458,21 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
         }
     }
     let dir = app.data.join("servers").join(id);
+    if s.game == Game::Fivem && app.data.join("runtime").join("mariadb-data").exists() {
+        if let Err(e) = games::mariadb_start(&app.data).await {
+            if let Some(l) = app.live.lock().await.get_mut(id) { l.push(format!("[foyer] MariaDB : {e:#}")) }
+        }
+    }
+    if s.game == Game::Minecraft {
+        // installe la version choisie si elle manque (changée dans les réglages)
+        let app2 = app.clone();
+        let id2 = id.to_string();
+        let log = move |m: String| {
+            let (app3, id3) = (app2.clone(), id2.clone());
+            tokio::spawn(async move { if let Some(l) = app3.live.lock().await.get_mut(&id3) { l.push(format!("[foyer] {m}")) } });
+        };
+        games::java(&app.data, s.java, &log).await?;
+    }
     let (exe, args, cwd) = games::command(s.game, &app.data, &dir, s.port, s.ram_mb, s.java, s.txadmin).await?;
     let mut cmd = Command::new(&exe);
     cmd.args(&args).current_dir(&cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(false);

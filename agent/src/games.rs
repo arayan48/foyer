@@ -74,6 +74,9 @@ pub struct Setup {
     pub db_url: Option<String>,
 }
 
+/// Base créée par Foyer dans la MariaDB locale.
+pub const DEFAULT_DB: &str = "mysql://root@localhost/fivem";
+
 pub fn yes() -> bool {
     true
 }
@@ -157,8 +160,21 @@ pub async fn install(game: Game, data: &Path, dir: &Path, port: u16, name: &str,
             log("Extraction…".into());
             extract(&file, &dir.join("artifacts")).await?;
             tokio::fs::remove_file(&file).await.ok();
+            let fw = o.framework.as_deref().unwrap_or("vanilla");
+            let own_db = o.db_url.as_deref().is_some_and(|u| !u.is_empty() && u != DEFAULT_DB);
+            let need_db = !own_db && (o.txadmin || fw == "esx" || fw == "qbcore");
+            if need_db {
+                if let Err(e) = mariadb(data, log).await {
+                    log(format!("MariaDB non installée : {e:#}"));
+                }
+            }
             if !o.txadmin {
                 server_data(dir, port, name, o, log).await?;
+                if need_db && fw != "vanilla" {
+                    if let Err(e) = import_sql(data, &dir.join("server-data").join("resources"), log).await {
+                        log(format!("Import SQL incomplet : {e:#}"));
+                    }
+                }
             }
             format!("Build {build}")
         }
@@ -184,7 +200,7 @@ async fn server_data(dir: &Path, port: u16, name: &str, o: &Setup, log: &impl Fn
     if fw == "esx" || fw == "qbcore" {
         log("Téléchargement d'oxmysql…".into());
         fetch_tree("https://github.com/overextended/oxmysql/releases/latest/download/oxmysql.zip", &res.join("[ox]").join("oxmysql"), dir).await?;
-        let db = clean(o.db_url.as_deref().unwrap_or("mysql://root@localhost/fivem"));
+        let db = clean(o.db_url.as_deref().unwrap_or(DEFAULT_DB));
         extra += &format!("set mysql_connection_string \"{db}\"\n");
         ensure.push("oxmysql");
     }
@@ -195,13 +211,11 @@ async fn server_data(dir: &Path, port: u16, name: &str, o: &Setup, log: &impl Fn
             log(format!("Téléchargement d'ESX Legacy {}…", r["tag_name"].as_str().unwrap_or("")));
             fetch_tree(url, &res.join("[esx]"), dir).await?;
             ensure.push("[core]");
-            log("ESX : importe le fichier .sql du dossier resources/[esx] dans ta base avant le premier démarrage.".into());
         }
         "qbcore" => {
             log("Téléchargement de QBCore…".into());
             fetch_tree("https://github.com/qbcore-framework/qb-core/archive/refs/heads/main.zip", &res.join("[qb]").join("qb-core"), dir).await?;
             ensure.push("qb-core");
-            log("QBCore : importe resources/[qb]/qb-core/qbcore.sql dans ta base avant le premier démarrage.".into());
         }
         _ => ensure.push("basic-gamemode"),
     }
@@ -267,7 +281,7 @@ pub async fn command(game: Game, data: &Path, dir: &Path, port: u16, ram_mb: u32
 }
 
 /// Java (Temurin JRE) partagé par les serveurs Minecraft, un dossier par version.
-async fn java(data: &Path, v: u8, log: &impl Fn(String)) -> Result<()> {
+pub async fn java(data: &Path, v: u8, log: &impl Fn(String)) -> Result<()> {
     if !JAVAS.contains(&v) {
         bail!("Java {v} non proposé");
     }
@@ -294,6 +308,130 @@ async fn java_bin(data: &Path, v: u8) -> Result<PathBuf> {
         }
     }
     bail!("Java introuvable")
+}
+
+/// MariaDB (LTS 11.4) partagée par les serveurs FiveM, écoute 127.0.0.1:3306, root sans mot de passe.
+async fn mariadb(data: &Path, log: &impl Fn(String)) -> Result<()> {
+    let rt = data.join("runtime");
+    if mariadb_bin(data, "mariadbd").await.is_err() {
+        let v: Value = get_json("https://downloads.mariadb.org/rest-api/mariadb/11.4/latest/").await?;
+        let end = if WIN { "-winx64.zip" } else { "-linux-systemd-x86_64.tar.gz" };
+        let url = v["releases"]
+            .as_object()
+            .and_then(|r| r.values().next())
+            .and_then(|r| r["files"].as_array())
+            .and_then(|f| f.iter().find(|f| f["file_name"].as_str().is_some_and(|n| n.ends_with(end))))
+            .and_then(|f| f["file_download_url"].as_str())
+            .ok_or_else(|| anyhow!("pas d'URL MariaDB"))?
+            .replace("http://", "https://");
+        let file = rt.join("mariadb.archive");
+        tokio::fs::create_dir_all(rt.join("mariadb")).await?;
+        log("Téléchargement de MariaDB…".into());
+        download(&url, &file).await?;
+        extract(&file, &rt.join("mariadb")).await?;
+        tokio::fs::remove_file(&file).await.ok();
+    }
+    let datadir = rt.join("mariadb-data");
+    if !datadir.join("mysql").exists() {
+        log("Création de la base de données…".into());
+        let base = mariadb_bin(data, "mariadbd").await?.parent().and_then(|b| b.parent()).ok_or_else(|| anyhow!("dossier MariaDB"))?.to_path_buf();
+        let mut c = if WIN {
+            tokio::process::Command::new(base.join("bin").join("mariadb-install-db.exe"))
+        } else {
+            let mut c = tokio::process::Command::new(base.join("scripts").join("mariadb-install-db"));
+            c.arg("--no-defaults").arg(format!("--basedir={}", base.display())).arg("--auth-root-authentication-method=normal").arg("--user=root");
+            c
+        };
+        let out = c.arg(format!("--datadir={}", datadir.display())).output().await?;
+        if !out.status.success() {
+            bail!("mariadb-install-db : {}", String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or(""));
+        }
+    }
+    mariadb_start(data).await
+}
+
+/// Lance MariaDB si elle est installée et pas déjà en route. Elle reste allumée après l'arrêt des serveurs.
+pub async fn mariadb_start(data: &Path) -> Result<()> {
+    let up = || async { tokio::net::TcpStream::connect("127.0.0.1:3306").await.is_ok() };
+    if up().await {
+        return Ok(());
+    }
+    let bin = mariadb_bin(data, "mariadbd").await?;
+    let datadir = data.join("runtime").join("mariadb-data");
+    let mut c = tokio::process::Command::new(&bin);
+    c.arg("--no-defaults").arg(format!("--datadir={}", datadir.display())).arg("--port=3306").arg("--bind-address=127.0.0.1");
+    if !WIN {
+        let base = bin.parent().and_then(|b| b.parent()).unwrap_or(Path::new("."));
+        c.arg(format!("--basedir={}", base.display())).arg(format!("--socket={}", datadir.join("mysql.sock").display())).arg("--user=root");
+    }
+    c.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).kill_on_drop(false);
+    #[cfg(windows)]
+    c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    #[cfg(unix)]
+    c.process_group(0);
+    c.spawn()?;
+    for _ in 0..60 {
+        if up().await {
+            return Ok(());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    bail!("MariaDB ne répond pas sur le port 3306")
+}
+
+async fn mariadb_bin(data: &Path, name: &str) -> Result<PathBuf> {
+    let mut rd = tokio::fs::read_dir(data.join("runtime").join("mariadb")).await?;
+    while let Some(e) = rd.next_entry().await? {
+        let bin = e.path().join("bin").join(if WIN { format!("{name}.exe") } else { name.to_string() });
+        if bin.exists() {
+            return Ok(bin);
+        }
+    }
+    bail!("MariaDB introuvable")
+}
+
+/// Crée la base `fivem` et y importe les fichiers .sql du framework.
+async fn import_sql(data: &Path, res: &Path, log: &impl Fn(String)) -> Result<()> {
+    let client = mariadb_bin(data, "mariadb").await?;
+    let run = |sql: Option<PathBuf>| {
+        let client = client.clone();
+        async move {
+            let mut c = tokio::process::Command::new(&client);
+            c.args(["-h", "127.0.0.1", "-P", "3306", "-u", "root"]);
+            match &sql {
+                Some(f) => { c.arg("fivem").stdin(std::fs::File::open(f)?); }
+                None => { c.args(["-e", "CREATE DATABASE IF NOT EXISTS fivem CHARACTER SET utf8mb4"]); }
+            }
+            let out = c.output().await?;
+            if !out.status.success() {
+                bail!("{}", String::from_utf8_lossy(&out.stderr).trim());
+            }
+            anyhow::Ok(())
+        }
+    };
+    run(None).await?;
+    let mut files = vec![];
+    let mut todo = vec![res.to_path_buf()];
+    while let Some(d) = todo.pop() {
+        let mut rd = tokio::fs::read_dir(&d).await?;
+        while let Some(e) = rd.next_entry().await? {
+            let p = e.path();
+            if e.file_type().await?.is_dir() {
+                todo.push(p);
+            } else if p.extension().is_some_and(|x| x == "sql") {
+                files.push(p);
+            }
+        }
+    }
+    files.sort();
+    log(format!("Import de {} fichier(s) SQL dans la base fivem…", files.len()));
+    for f in files {
+        // un fichier en échec (table déjà là, dépendance absente) n'empêche pas les autres
+        if let Err(e) = run(Some(f.clone())).await {
+            log(format!("{} : {e:#}", f.file_name().unwrap_or_default().to_string_lossy()));
+        }
+    }
+    Ok(())
 }
 
 async fn get_json(url: &str) -> Result<Value> {
