@@ -95,6 +95,19 @@ pub fn java_for(mc: &str) -> u8 {
     }
 }
 
+/// Plus haute version stable de Paper, comparée par numéros (1.10 < 1.21 < 26.3).
+fn latest_paper(p: &Value) -> Option<String> {
+    p["versions"]
+        .as_object()?
+        .values()
+        .filter_map(|v| v.as_array())
+        .flatten()
+        .filter_map(|x| x.as_str())
+        .filter(|x| !x.contains('-'))
+        .max_by_key(|x| x.split('.').filter_map(|n| n.parse().ok()).collect::<Vec<u32>>())
+        .map(str::to_string)
+}
+
 /// Versions proposées à la création : Minecraft (Paper stables) et builds FiveM.
 pub async fn catalog() -> Result<Value> {
     let p: Value = get_json("https://fill.papermc.io/v3/projects/paper").await?;
@@ -124,13 +137,7 @@ pub async fn install(game: Game, data: &Path, dir: &Path, port: u16, name: &str,
                 None => {
                     log("Recherche de la dernière version de Paper…".into());
                     let p: Value = get_json("https://fill.papermc.io/v3/projects/paper").await?;
-                    p["versions"]
-                        .as_object()
-                        .and_then(|m| m.values().next())
-                        .and_then(|v| v.as_array())
-                        .and_then(|v| v.iter().filter_map(|x| x.as_str()).find(|x| !x.contains('-')))
-                        .ok_or_else(|| anyhow!("aucune version Paper stable"))?
-                        .to_string()
+                    latest_paper(&p).ok_or_else(|| anyhow!("aucune version Paper stable"))?
                 }
             };
             if !version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-') {
@@ -285,22 +292,58 @@ pub async fn java(data: &Path, v: u8, log: &impl Fn(String)) -> Result<()> {
     if !JAVAS.contains(&v) {
         bail!("Java {v} non proposé");
     }
-    if java_bin(data, v).await.is_ok() {
-        return Ok(());
+    // une seule installation à la fois : l'archive et les dossiers sont partagés
+    static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _guard = LOCK.lock().await;
+    if let Ok(bin) = java_bin(data, v).await {
+        match java_works(&bin).await {
+            Ok(()) => return Ok(()),
+            Err(e) => log(format!("Java {v} est incomplet, réinstallation ({e:#})")),
+        }
     }
     let os = if WIN { "windows" } else { "linux" };
     let dir = data.join("runtime").join(format!("java{v}"));
     let file = data.join("runtime").join("java.archive");
-    tokio::fs::create_dir_all(&dir).await?;
+    let tmp = data.join("runtime").join(format!("java{v}.tmp"));
+    tokio::fs::create_dir_all(data.join("runtime")).await?;
     log(format!("Téléchargement de Java {v}…"));
     download(&format!("https://api.adoptium.net/v3/binary/latest/{v}/ga/{os}/x64/jre/hotspot/normal/eclipse"), &file).await?;
-    extract(&file, &dir).await?;
+    remove_dir(&tmp).await?;
+    extract(&file, &tmp).await?;
     tokio::fs::remove_file(&file).await.ok();
-    java_bin(data, v).await.map(|_| ())
+    java_works(&java_in(&tmp).await?).await.with_context(|| format!("Java {v} téléchargé mais inutilisable"))?;
+    remove_dir(&dir).await.with_context(|| format!("ancien Java {v} impossible à remplacer"))?;
+    tokio::fs::rename(&tmp, &dir).await?;
+    Ok(())
+}
+
+async fn remove_dir(p: &Path) -> std::io::Result<()> {
+    match tokio::fs::remove_dir_all(p).await {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+        _ => Ok(()),
+    }
+}
+
+/// Lance `java -version` : une extraction interrompue laisse java.exe sans le reste.
+async fn java_works(bin: &Path) -> Result<()> {
+    let mut c = tokio::process::Command::new(bin);
+    c.arg("-version").stdin(std::process::Stdio::null()).kill_on_drop(true);
+    #[cfg(windows)]
+    c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    let out = tokio::time::timeout(std::time::Duration::from_secs(30), c.output()).await.context("java ne répond pas")??;
+    if !out.status.success() {
+        let err = [out.stderr, out.stdout].concat();
+        bail!("{}", String::from_utf8_lossy(&err).lines().next().unwrap_or("java ne démarre pas"));
+    }
+    Ok(())
 }
 
 async fn java_bin(data: &Path, v: u8) -> Result<PathBuf> {
-    let mut rd = tokio::fs::read_dir(data.join("runtime").join(format!("java{v}"))).await?;
+    java_in(&data.join("runtime").join(format!("java{v}"))).await
+}
+
+async fn java_in(dir: &Path) -> Result<PathBuf> {
+    let mut rd = tokio::fs::read_dir(dir).await?;
     while let Some(e) = rd.next_entry().await? {
         let bin = e.path().join("bin").join(if WIN { "java.exe" } else { "java" });
         if bin.exists() {
@@ -565,6 +608,35 @@ mod tests {
         use super::plugin_file_ok as ok;
         assert!(ok("LuckPerms-5.4.jar") && ok("a.jar.disabled"));
         assert!(!ok("../a.jar") && !ok("a/b.jar") && !ok("a\\b.jar") && !ok("a.txt") && !ok(".jar"));
+    }
+
+    #[test]
+    fn derniere_version_de_paper() {
+        let p = serde_json::json!({ "versions": { "1.10": ["1.10.2"], "1.21": ["1.21.11", "1.21.9"], "26.3": ["26.3", "26.3-rc-3"] } });
+        assert_eq!(super::latest_paper(&p).as_deref(), Some("26.3"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn java_incomplet_detecte() {
+        assert!(super::java_works(std::path::Path::new("/bin/true")).await.is_ok());
+        assert!(super::java_works(std::path::Path::new("/bin/false")).await.is_err());
+    }
+
+    /// Réseau : `cargo test -- --ignored`
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    #[ignore]
+    async fn java_incomplet_repare() {
+        let data = std::env::temp_dir().join("foyer-test-java");
+        std::fs::remove_dir_all(&data).ok();
+        super::java(&data, 25, &|m| println!("{m}")).await.unwrap();
+        let bin = super::java_bin(&data, 25).await.unwrap();
+        std::fs::remove_file(bin.parent().unwrap().parent().unwrap().join("lib/jvm.cfg")).unwrap();
+        assert!(super::java_works(&bin).await.is_err());
+        super::java(&data, 25, &|m| println!("{m}")).await.unwrap();
+        super::java_works(&super::java_bin(&data, 25).await.unwrap()).await.unwrap();
+        std::fs::remove_dir_all(&data).ok();
     }
 
     #[test]
