@@ -13,7 +13,7 @@ const trash = []
 const journal = []
 let props = { motd: 'Chez nous', difficulty: 'normal', 'max-players': '10' }
 const plugins = [{ file: 'EssentialsX-2.21.jar', enabled: true, size: 3.2e6 }, { file: 'Dynmap-3.7.jar.disabled', enabled: false, size: 8e6 }]
-const sys = { name: 'WIN-RVSDEAUH9KJ', os: 'Windows Server 2025 Standard', cpu: 18, mem_used: 6.1e9, mem_total: 17.1e9, disk_free: 4.6e11, disk_total: 5e11, cores: 4, threads: 8, cpu_model: 'Intel(R) Xeon(R) E-2236 CPU @ 3.40GHz', arch: 'x86_64', kernel: '26100', uptime: 412345, agent: '0.2.0' }
+const sys = { name: 'WIN-RVSDEAUH9KJ', os: 'Windows Server 2025 Standard', cpu: 18, mem_used: 6.1e9, mem_total: 17.1e9, disk_free: 4.6e11, disk_total: 5e11, cores: 4, threads: 8, cpu_model: 'Intel(R) Xeon(R) E-2236 CPU @ 3.40GHz', arch: 'x86_64', kernel: '26100', uptime: 412345, agent: '0.4.21' }
 
 let backing = false
 const backups = [
@@ -49,6 +49,7 @@ http.createServer(async (q, r) => {
     ;({ kick: () => drop('online'), ban: () => (drop('online'), put('banned')), pardon: () => drop('banned'), op: () => put('ops'), deop: () => drop('ops'), whitelist_add: () => put('whitelist'), whitelist_remove: () => drop('whitelist') })[a]()
     return r.writeHead(204).end()
   }
+  if (/\/rules\//.test(u.pathname)) return r.writeHead(204).end()
   const fm = u.pathname.match(/^\/api\/servers\/\w+\/files(\/content)?$/)
   if (fm) {
     const path = u.searchParams.get('path') ?? ''

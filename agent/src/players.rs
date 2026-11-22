@@ -57,6 +57,28 @@ pub async fn act(State(app): S, UrlPath((id, name, action)): UrlPath<(String, St
     send(&app, &id, &cmd).await
 }
 
+/// Réglages de `server.properties` devenus des règles de jeu en 1.21.9, renommées en 1.21.11.
+fn rule_command(mc: &str, rule: &str, on: bool) -> Option<String> {
+    let v = crate::software::key(mc);
+    let name = match rule {
+        _ if v < vec![1, 21, 9] => return None,
+        "pvp" => "pvp",
+        "command-blocks" if v < vec![1, 21, 11] => "commandBlocksEnabled",
+        "command-blocks" => "command_blocks_work",
+        _ => return None,
+    };
+    Some(format!("gamerule {name} {on}"))
+}
+
+pub async fn rule(State(app): S, UrlPath((id, rule, on)): UrlPath<(String, String, bool)>) -> Result<StatusCode, Err> {
+    let servers = app.servers.lock().await;
+    let label = servers.iter().find(|s| s.id == id && s.game == crate::games::Game::Minecraft).and_then(|s| s.version.clone());
+    drop(servers);
+    let mc = crate::software::parse(label.as_deref()).1.unwrap_or_default();
+    let cmd = rule_command(&mc, &rule, on).ok_or((StatusCode::BAD_REQUEST, "Règle indisponible pour ce serveur".into()))?;
+    send(&app, &id, &cmd).await
+}
+
 async fn send(app: &App, id: &str, cmd: &str) -> Result<StatusCode, Err> {
     let mut live = app.live.lock().await;
     let off = || (StatusCode::CONFLICT, "Démarre le serveur d'abord".to_string());
@@ -82,6 +104,14 @@ mod tests {
         assert_eq!(p.iter().collect::<Vec<_>>(), [".Eve_1", "Bob"]);
         track(&mut p, "[20:00:00 INFO]: Bob left the game");
         assert_eq!(p.len(), 1);
+    }
+
+    #[test]
+    fn regles_de_jeu() {
+        assert_eq!(rule_command("1.21.10", "command-blocks", true).unwrap(), "gamerule commandBlocksEnabled true");
+        assert_eq!(rule_command("26.3", "command-blocks", false).unwrap(), "gamerule command_blocks_work false");
+        assert_eq!(rule_command("1.21.11", "pvp", false).unwrap(), "gamerule pvp false");
+        assert!(rule_command("1.21.8", "pvp", true).is_none() && rule_command("", "pvp", true).is_none() && rule_command("26.3", "stop", true).is_none());
     }
 
     #[test]

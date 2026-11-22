@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowLeft, Check, Search } from 'lucide-svelte'
-  import { GAMES, SOFTWARE, call, type Catalog, type Conn, type Game, type Server, type Software } from './api'
+  import { GAMES, SOFTWARE, call, cmpVersion, type Host, type Catalog, type Conn, type Game, type Server, type Software } from './api'
 
   // affiches officielles, © leurs éditeurs (mêmes fichiers que le site)
   import minecraft from '../assets/games/minecraft.webp'
@@ -29,6 +29,9 @@
   let name = $state('')
   let ram = $state(4)
   let eula = $state(false)
+  // un agent plus ancien installerait Vanilla sans rien dire
+  let agent = '999'
+  call<Host>(conn, '/api/system').then((h) => (agent = h.agent ?? '0')).catch(() => {})
   let busy = $state(false)
   let error = $state('')
 
@@ -114,6 +117,10 @@
       return
     }
     name = name.trim() || autoName
+    if (game === 'minecraft' && cmpVersion(agent, '0.4.18') < 0) {
+      error = "Mets d'abord Foyer Serveur à jour : cette version ignore ces choix."
+      return
+    }
     busy = true
     error = ''
     try {

@@ -214,6 +214,7 @@ async fn run() -> Result<()> {
         .route("/api/servers/{id}/backups/{backup}", post(backups::restore).delete(backups::delete))
         .route("/api/servers/{id}/players", get(players::list))
         .route("/api/servers/{id}/players/{name}/{action}", post(players::act))
+        .route("/api/servers/{id}/rules/{rule}/{on}", post(players::rule))
         .route("/api/journal", get(journal::list))
         .route("/api/trash", get(trash::list))
         .route("/api/trash/{id}", post(trash::restore).delete(trash::purge))

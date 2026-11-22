@@ -77,6 +77,7 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | GET / PUT | `/api/servers/{id}/files/content?path=` | télécharge / écrit un fichier (corps brut, sans limite de taille, remplacé une fois tout reçu) |
 | GET | `/api/servers/{id}/players` | Minecraft : `{online, ops, whitelist, banned}` (noms) ; présents suivis dans la console |
 | POST | `/api/servers/{id}/players/{nom}/{action}` | `kick`, `ban`, `pardon`, `op`, `deop`, `whitelist_add`, `whitelist_remove` ; serveur démarré, sinon 409 |
+| POST | `/api/servers/{id}/rules/{pvp\|command-blocks}/{true\|false}` | Minecraft 1.21.9 et plus, serveur démarré : règle de jeu |
 | GET | `/api/journal` | 200 dernières actions `{at, ip, action, status}` : requêtes qui changent quelque chose et commandes console |
 | GET | `/api/trash` | serveurs supprimés + `deleted_at` |
 | POST / DELETE | `/api/trash/{id}` | restaure (409 si le port est pris) / efface définitivement ; effacement auto après 30 jours |

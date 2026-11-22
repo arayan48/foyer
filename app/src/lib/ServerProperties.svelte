@@ -1,3 +1,9 @@
+<script module lang="ts">
+  import { SvelteSet } from 'svelte/reactivity'
+  // serveurs à redémarrer, gardés quand on change d'onglet
+  const pending = new SvelteSet<string>()
+</script>
+
 <script lang="ts">
   import { untrack } from 'svelte'
   import { Earth, Gauge, RotateCw, Swords, Users } from 'lucide-svelte'
@@ -31,7 +37,7 @@
   let hasWorld = $state(false)
   let busy = $state(false)
   let error = $state('')
-  let restart = $state(false)
+  const restart = $derived(pending.has(server.id))
   let ask = $state(false)
   const dirty = $derived(JSON.stringify(f) !== JSON.stringify(saved))
   const url = `/api/servers/${server.id}/properties`
@@ -58,7 +64,14 @@
   const IDS: Record<string, string> = { default: 'minecraft:normal', flat: 'minecraft:flat', largeBiomes: 'minecraft:large_biomes', amplified: 'minecraft:amplified' }
   function write(k: Key, v: string) {
     if (k === 'level-type' && since('1.19')) return IDS[v] ?? v
-    return NAMES[k] && !since('1.14') ? String(NAMES[k].indexOf(v)) : v
+    const n = NAMES[k]?.indexOf(v) ?? -1
+    return n >= 0 && !since('1.14') ? String(n) : v
+  }
+
+  let worldDir = ''
+  async function findWorld() {
+    const l = await call<{ name: string; dir: boolean }[]>(conn, `/api/servers/${server.id}/files?path=`)
+    hasWorld = l.some((x) => x.dir && x.name === worldDir)
   }
 
   async function load() {
@@ -67,8 +80,8 @@
       const p = await call<Record<string, string>>(conn, url)
       const v = { ...DEF }
       for (const k of Object.keys(DEF) as Key[]) if (p[k] !== undefined) v[k] = read(k, p[k])
-      const world = encodeURIComponent(p['level-name'] || 'world')
-      hasWorld = await call(conn, `/api/servers/${server.id}/files?path=${world}`).then(() => true, () => false)
+      worldDir = p['level-name'] || 'world'
+      await findWorld()
       saved = v
       f = { ...v }
       ready = true
@@ -85,7 +98,9 @@
 
   // le redémarrage demandé est fait dès que le serveur quitte l'état « en ligne »
   $effect(() => {
-    if (server.status !== 'running') untrack(() => (restart = false))
+    // le monde naît au premier démarrage
+    if (server.status && ready) untrack(() => findWorld().catch(() => {}))
+    if (server.status !== 'running') untrack(() => pending.delete(server.id))
   })
 
   // réglages rapides : affichage, simulation, entités
@@ -122,7 +137,23 @@
       if (body['white-list']) body['enforce-whitelist'] = body['white-list']
       await call(conn, url, { method: 'PUT', body: JSON.stringify(body) })
       saved = next
-      restart = server.status === 'running'
+      if (server.status === 'running') pending.add(server.id)
+    } catch (e) {
+      error = (e as Error).message
+    } finally {
+      busy = false
+    }
+  }
+
+  // depuis 1.21.9, l'agent passe par la console
+  let ruleMsg = $state('')
+  async function rule(name: string, on: boolean, label: string) {
+    busy = true
+    error = ''
+    ruleMsg = ''
+    try {
+      await call(conn, `/api/servers/${server.id}/rules/${name}/${on}`, { method: 'POST' })
+      ruleMsg = `${label} : ${on ? 'activé' : 'désactivé'}`
     } catch (e) {
       error = (e as Error).message
     } finally {
@@ -135,7 +166,7 @@
     error = ''
     try {
       await call(conn, `/api/servers/${server.id}/restart`, { method: 'POST' })
-      restart = false
+      pending.delete(server.id)
     } catch (e) {
       error = (e as Error).message
     } finally {
@@ -149,6 +180,14 @@
   <label class="row"><div><strong>{label}</strong>{#if hint}<small>{hint}</small>{/if}</div>
     <div class="slide"><input type="range" {min} max={Math.max(max, Number(saved[k]) || 0)} {step} value={n} oninput={(e) => (f[k] = e.currentTarget.value)} aria-valuetext={unit(n)} /><output>{unit(n)}</output></div>
   </label>
+{/snippet}
+{#snippet ruleRow(name: string, label: string)}
+  <div class="row"><div><strong>{label}</strong>{#if server.status !== 'running'}<small>Démarre le serveur pour changer.</small>{/if}</div>
+    <div class="val" role="group" aria-label={label}>
+      <button type="button" class="btn" disabled={busy || server.status !== 'running'} onclick={() => rule(name, true, label)}>Activer</button>
+      <button type="button" class="btn" disabled={busy || server.status !== 'running'} onclick={() => rule(name, false, label)}>Désactiver</button>
+    </div>
+  </div>
 {/snippet}
 {#snippet pick(k: Key, label: string, options: [string, string][])}
   <label class="row"><div><strong>{label}</strong></div><select class="input" bind:value={f[k]}>
@@ -174,9 +213,13 @@
         {#if oldRules}
           {@render toggle(pvp, 'Combat entre joueurs')}
           {@render toggle(blocks, 'Blocs de commande')}
+        {:else}
+          {@render ruleRow('pvp', 'Combat entre joueurs')}
+          {@render ruleRow('command-blocks', 'Blocs de commande')}
         {/if}
         {@render toggle(flight, 'Autoriser le vol', "À activer si un mod fait voler, sinon le joueur est expulsé.")}
       </div>
+      {#if ruleMsg}<p class="note" role="status">{ruleMsg}</p>{/if}
 
     {:else if page === 'world'}
       <h2>Monde</h2>

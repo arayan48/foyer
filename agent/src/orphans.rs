@@ -45,7 +45,13 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let exe = data.join("sleep");
         std::fs::copy("/bin/sleep", &exe).unwrap();
-        let mut game = tokio::process::Command::new(&exe).arg("60").current_dir(&dir).spawn().unwrap();
+        // un autre test qui lance un programme pendant la copie peut garder le fichier ouvert (« Text file busy »)
+        let mut game = loop {
+            match tokio::process::Command::new(&exe).arg("60").current_dir(&dir).spawn() {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => std::thread::sleep(std::time::Duration::from_millis(20)),
+                r => break r.unwrap(),
+            }
+        };
         // même dossier, mais pas un programme de Foyer : intouchable
         let mut other = tokio::process::Command::new("/bin/sleep").arg("60").current_dir(&dir).spawn().unwrap();
         let (_, st) = tokio::join!(super::stop(&data), game.wait());
