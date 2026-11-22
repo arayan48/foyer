@@ -4,6 +4,7 @@ mod files;
 mod games;
 mod journal;
 mod limits;
+mod orphans;
 mod players;
 mod software;
 mod trash;
@@ -174,6 +175,7 @@ async fn run() -> Result<()> {
     let live = servers.iter().map(|s| (s.id.clone(), Live::new(Status::Stopped))).collect();
     let app = Arc::new(App { data: data.clone(), token, servers: Mutex::new(servers), live: Mutex::new(live), failures: Default::default(), host: Default::default() });
 
+    orphans::stop(&data).await;
     let _ = tokio::fs::remove_dir_all(data.join("tmp")).await; // envois interrompus
     tokio::spawn(stats_loop(app.clone()));
     tokio::spawn(disk_loop(app.clone()));

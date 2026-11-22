@@ -464,7 +464,10 @@ pub async fn download(url: &str, to: &Path) -> Result<()> {
     }
     f.flush().await?;
     drop(f);
-    tokio::fs::rename(&tmp, to).await?;
+    if let Err(e) = tokio::fs::rename(&tmp, to).await {
+        tokio::fs::remove_file(&tmp).await.ok();
+        bail!("{} est utilisé par un autre programme ({e})", to.file_name().unwrap_or_default().to_string_lossy());
+    }
     Ok(())
 }
 

@@ -1,8 +1,9 @@
 ; Foyer Serveur : l'agent démarre avec Windows ; l'interface est au choix.
 
 !macro NSIS_HOOK_PREINSTALL
+  ; curl et pas Invoke-RestMethod : PowerShell 5.1 ne peut pas accepter le certificat auto-signé hors de son thread
   ; mise à jour : arrêt propre des jeux (sauvegarde des mondes), puis libère foyer-agent.exe
-  nsExec::Exec `powershell -NoProfile -Command "try { $$t = (Get-Content C:\Foyer\token -Raw).Trim(); $$h = @{Authorization=('Bearer ' + $$t)}; [Net.ServicePointManager]::SecurityProtocol = 'Tls12'; [Net.ServicePointManager]::ServerCertificateValidationCallback = {$$true}; try { Invoke-RestMethod -Method Post -Uri https://127.0.0.1:7878/api/shutdown -Headers $$h -TimeoutSec 120 } catch { Invoke-RestMethod -Method Post -Uri http://127.0.0.1:7878/api/shutdown -Headers $$h -TimeoutSec 120 } } catch {}"`
+  nsExec::Exec `powershell -NoProfile -Command "try { $$t = (Get-Content C:\Foyer\token -Raw).Trim(); foreach ($$s in 'https','http') { ('header = {0}Authorization: Bearer {1}{0}' -f [char]34, $$t) | curl.exe -sk -f -m 120 -X POST -K - ($$s + '://127.0.0.1:7878/api/shutdown'); if ($$LASTEXITCODE -eq 0) { break } } } catch {}"`
   nsExec::Exec 'schtasks /End /TN "Foyer Agent"'
   nsExec::Exec 'taskkill /F /T /IM foyer-agent.exe'
   Sleep 1000
@@ -32,7 +33,7 @@
 
 !macro NSIS_HOOK_PREUNINSTALL
   ; arrêt propre des jeux (sauvegarde des mondes) avant de tout couper
-  nsExec::Exec `powershell -NoProfile -Command "try { $$t = (Get-Content C:\Foyer\token -Raw).Trim(); $$h = @{Authorization=('Bearer ' + $$t)}; [Net.ServicePointManager]::SecurityProtocol = 'Tls12'; [Net.ServicePointManager]::ServerCertificateValidationCallback = {$$true}; Invoke-RestMethod -Method Post -Uri https://127.0.0.1:7878/api/shutdown -Headers $$h -TimeoutSec 120 } catch {}"`
+  nsExec::Exec `powershell -NoProfile -Command "try { $$t = (Get-Content C:\Foyer\token -Raw).Trim(); foreach ($$s in 'https','http') { ('header = {0}Authorization: Bearer {1}{0}' -f [char]34, $$t) | curl.exe -sk -f -m 120 -X POST -K - ($$s + '://127.0.0.1:7878/api/shutdown'); if ($$LASTEXITCODE -eq 0) { break } } } catch {}"`
   nsExec::Exec 'schtasks /End /TN "Foyer Agent"'
   nsExec::Exec 'schtasks /Delete /TN "Foyer Agent" /F'
   nsExec::Exec 'taskkill /F /T /IM foyer-agent.exe'

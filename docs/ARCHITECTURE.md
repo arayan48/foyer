@@ -35,6 +35,7 @@ Deux installeurs construits à partir de la même appli :
 | `main.rs` | serveur HTTPS (axum 0.8 + axum-server/rustls, certificat auto-signé via rcgen), auth, état, cycle de vie des processus, stats, pare-feu, persistance |
 | `games.rs` | recettes de jeux : installation (téléchargements, extraction), commande de lancement, ports, commande d'arrêt, marqueur « prêt » |
 | `files.rs` | fichiers d'un serveur, chemins bloqués dans `servers/<id>` (liens symboliques compris) |
+| `orphans.rs` | au démarrage de l'agent, arrête les jeux laissés par un agent coupé net |
 | `software.rs` | logiciels Minecraft (Vanilla, Paper, Purpur, Fabric, Forge, NeoForge) : versions et installation |
 | `players.rs` | joueurs Minecraft : présents, listes, commandes |
 | `journal.rs` | journal des actions (`actions.log`, 1 Mo puis `actions.log.1`) |
