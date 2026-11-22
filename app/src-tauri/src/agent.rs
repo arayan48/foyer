@@ -91,7 +91,9 @@ pub async fn agent_probe(url: String) -> Result<String, String> {
 pub async fn agent_call(url: String, fp: String, token: String, method: String, path: String, body: Option<String>) -> Result<(u16, String), String> {
   https(&url)?;
   let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(err)?;
-  let mut r = client(&fp).request(m, format!("{url}{path}")).bearer_auth(token);
+  // arrêter un serveur peut prendre 35 s
+  let limit = Duration::from_secs(if m == reqwest::Method::GET { 30 } else { 60 });
+  let mut r = client(&fp).request(m, format!("{url}{path}")).bearer_auth(token).timeout(limit);
   if let Some(b) = body {
     r = r.header("Content-Type", "application/json").body(b);
   }

@@ -725,7 +725,8 @@ async fn action(State(app): S, UrlPath((id, action)): UrlPath<(String, String)>)
     let r = match action.as_str() {
         "start" => start(&app, &id).await,
         "stop" => { stop(&app, &id).await; Ok(()) }
-        "restart" => { stop(&app, &id).await; start(&app, &id).await }
+        // détaché : si l'appli coupe la requête pendant l'arrêt, le serveur redémarre quand même
+        "restart" => tokio::spawn(async move { stop(&app, &id).await; start(&app, &id).await }).await.unwrap_or_else(|e| Err(e.into())),
         _ => return Err((StatusCode::NOT_FOUND, "action inconnue".into())),
     };
     r.map(|_| StatusCode::NO_CONTENT).map_err(|e| (StatusCode::CONFLICT, format!("{e:#}")))
@@ -916,7 +917,13 @@ fn should_retry(crashes: &mut VecDeque<Instant>, now: Instant) -> bool {
     true
 }
 
+/// Détaché : si l'appli coupe la requête, l'arrêt va quand même au bout.
 async fn stop(app: &Arc<App>, id: &str) {
+    let (app, id) = (app.clone(), id.to_string());
+    let _ = tokio::spawn(async move { stop_inner(&app, &id).await }).await;
+}
+
+async fn stop_inner(app: &Arc<App>, id: &str) {
     let stop_cmd = app.servers.lock().await.iter().find(|s| s.id == id).and_then(|s| s.game.stop_command(s.txadmin));
     let pid = {
         let mut live = app.live.lock().await;
@@ -930,9 +937,15 @@ async fn stop(app: &Arc<App>, id: &str) {
         pid
     };
     // attend l'arrêt propre 30 s, sinon tue l'arbre de processus
-    for _ in 0..60 {
-        if app.live.lock().await.get(id).map_or(true, |l| l.pid.is_none()) {
-            return;
+    for i in 0..60 {
+        match app.live.lock().await.get_mut(id) {
+            Some(l) if l.pid == Some(pid) => {
+                // Minecraft perd une commande reçue avant la fin de son démarrage
+                if let (true, Some(cmd), Some(stdin)) = (i > 0 && i % 10 == 0, stop_cmd, l.stdin.as_mut()) {
+                    let _ = stdin.write_all(format!("{cmd}\n").as_bytes()).await;
+                }
+            }
+            _ => return,
         }
         if stop_cmd.is_none() {
             break;
@@ -941,7 +954,7 @@ async fn stop(app: &Arc<App>, id: &str) {
     }
     kill_tree(pid).await;
     for _ in 0..20 {
-        if app.live.lock().await.get(id).map_or(true, |l| l.pid.is_none()) {
+        if app.live.lock().await.get(id).map_or(true, |l| l.pid != Some(pid)) {
             return;
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -1137,6 +1150,21 @@ mod tests {
         assert!(!should_retry(&mut c, t + Duration::from_secs(60)));
         // après 10 min les vieux crashs ne comptent plus
         assert!(should_retry(&mut c, t + Duration::from_secs(601)));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn arret_malgre_requete_coupee() {
+        let mut game = Command::new("sleep").arg("60").process_group(0).spawn().unwrap();
+        // txAdmin : pas de commande d'arrêt, tué tout de suite
+        let s: Server = serde_json::from_str(r#"{"id":"abc","name":"x","game":"fivem","port":30120,"ram_mb":1024,"txadmin":true}"#).unwrap();
+        let app = Arc::new(App { data: std::env::temp_dir(), token: String::new(), servers: vec![s].into(), live: Default::default(), failures: Default::default(), host: Default::default() });
+        let mut l = Live::new(Status::Running);
+        l.pid = game.id();
+        app.live.lock().await.insert("abc".into(), l);
+        assert!(tokio::time::timeout(Duration::ZERO, stop(&app, "abc")).await.is_err());
+        let st = tokio::time::timeout(Duration::from_secs(5), game.wait()).await.expect("toujours en vie").unwrap();
+        assert_eq!(std::os::unix::process::ExitStatusExt::signal(&st), Some(9));
     }
 
     #[test]
