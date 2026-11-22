@@ -114,7 +114,7 @@ impl Setup {
             _ => "minecraft:amplified",
         };
         Ok(format!(
-            "server-port={port}\nquery.port={port}\nlevel-seed={seed}\nlevel-type={kind}\nhardcore={}\nonline-mode={}\n",
+            "server-port={port}\nquery.port={port}\nlevel-seed={seed}\nlevel-type={kind}\nforce-gamemode=true\nhardcore={}\nonline-mode={}\n",
             self.hardcore,
             self.online_mode.unwrap_or(true)
         ))
@@ -740,9 +740,9 @@ mod tests {
     #[test]
     fn reglages_du_monde() {
         let s = |v: serde_json::Value| serde_json::from_value::<super::Setup>(v).unwrap().properties(25565, "1.18.2");
-        assert_eq!(s(serde_json::json!({})).unwrap(), "server-port=25565\nquery.port=25565\nlevel-seed=\nlevel-type=default\nhardcore=false\nonline-mode=true\n");
+        assert_eq!(s(serde_json::json!({})).unwrap(), "server-port=25565\nquery.port=25565\nlevel-seed=\nlevel-type=default\nforce-gamemode=true\nhardcore=false\nonline-mode=true\n");
         let p = s(serde_json::json!({ "software": "neoforge", "seed": " 42 ", "level_type": "flat", "hardcore": true, "online_mode": false })).unwrap();
-        assert!(p.ends_with("level-seed=42\nlevel-type=flat\nhardcore=true\nonline-mode=false\n"));
+        assert!(p.ends_with("level-seed=42\nlevel-type=flat\nforce-gamemode=true\nhardcore=true\nonline-mode=false\n"));
         assert!(s(serde_json::json!({ "seed": "a\\" })).is_err() && s(serde_json::json!({ "seed": "a\nop=1" })).is_err());
         assert!(s(serde_json::json!({ "level_type": "x" })).is_err());
         let kind = |k: &str, mc: &str| super::Setup { level_type: Some(k.into()), ..Default::default() }.properties(1, mc).unwrap().contains("level-type=minecraft:large_biomes\n");

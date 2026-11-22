@@ -215,6 +215,7 @@ async fn run() -> Result<()> {
         .route("/api/servers/{id}/players", get(players::list))
         .route("/api/servers/{id}/players/{name}/{action}", post(players::act))
         .route("/api/servers/{id}/rules/{rule}/{on}", post(players::rule))
+        .route("/api/servers/{id}/rules", get(players::rules))
         .route("/api/journal", get(journal::list))
         .route("/api/trash", get(trash::list))
         .route("/api/trash/{id}", post(trash::restore).delete(trash::purge))
@@ -819,10 +820,17 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
                     unpacking = true;
                     line = "[foyer] Préparation des fichiers…".into();
                 }
+                if let Some((rule, on)) = mc.then(|| players::rule_line(&line)).flatten() {
+                    let _ = players::save_rule(&app, &id, rule, on).await;
+                }
                 let mut live = app.live.lock().await;
                 if let Some(l) = live.get_mut(&id) {
                     if l.status == Status::Starting && line.contains(marker) {
                         l.status = Status::Running;
+                        if mc {
+                            let (app, id) = (app.clone(), id.clone());
+                            tokio::spawn(async move { players::apply_rules(&app, &id).await });
+                        }
                     }
                     if mc {
                         players::track(&mut l.players, &line);

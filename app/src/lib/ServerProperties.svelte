@@ -44,8 +44,10 @@
 
   const mc = software(server).mc
   const since = (v: string) => !mc || cmpVersion(mc, v) >= 0
-  // devenus des règles de jeu en 1.21.9 : le fichier n'est plus lu
+  // devenus des règles de jeu en 1.21.9 : l'agent les change par la console
   const oldRules = !since('1.21.9')
+  const RULES: Partial<Record<Key, string>> = oldRules ? {} : { pvp: 'pvp', 'enable-command-block': 'command-blocks' }
+  let hasRules = $state(false)
 
   // nombres avant 1.14, noms ensuite
   const NAMES: Partial<Record<Key, string[]>> = {
@@ -80,6 +82,12 @@
       const p = await call<Record<string, string>>(conn, url)
       const v = { ...DEF }
       for (const k of Object.keys(DEF) as Key[]) if (p[k] !== undefined) v[k] = read(k, p[k])
+      if (!oldRules) {
+        // un agent plus ancien n'a pas cette route
+        const r = await call<Record<string, boolean>>(conn, `/api/servers/${server.id}/rules`).catch(() => null)
+        hasRules = !!r
+        for (const [k, name] of Object.entries(RULES)) if (r) v[k as Key] = String(r[name])
+      }
       worldDir = p['level-name'] || 'world'
       await findWorld()
       saved = v
@@ -132,28 +140,18 @@
     const next = { ...f }
     try {
       const body: Record<string, string> = {}
-      for (const k of Object.keys(next) as Key[]) if (next[k] !== saved[k]) body[k] = write(k, next[k].trim().replace(/\r/g, ''))
+      for (const k of Object.keys(next) as Key[]) if (next[k] !== saved[k] && !RULES[k]) body[k] = write(k, next[k].trim().replace(/\r/g, ''))
       // sans enforce-whitelist, les joueurs déjà connectés restent quand on active la liste
       if (body['white-list']) body['enforce-whitelist'] = body['white-list']
-      await call(conn, url, { method: 'PUT', body: JSON.stringify(body) })
+      for (const [k, name] of Object.entries(RULES) as [Key, string][]) {
+        if (next[k] === saved[k]) continue
+        await call(conn, `/api/servers/${server.id}/rules/${name}/${next[k]}`, { method: 'POST' })
+        saved[k] = next[k]
+      }
+      const file = Object.keys(body).length > 0
+      if (file) await call(conn, url, { method: 'PUT', body: JSON.stringify(body) })
       saved = next
-      if (server.status === 'running') pending.add(server.id)
-    } catch (e) {
-      error = (e as Error).message
-    } finally {
-      busy = false
-    }
-  }
-
-  // depuis 1.21.9, l'agent passe par la console
-  let ruleMsg = $state('')
-  async function rule(name: string, on: boolean, label: string) {
-    busy = true
-    error = ''
-    ruleMsg = ''
-    try {
-      await call(conn, `/api/servers/${server.id}/rules/${name}/${on}`, { method: 'POST' })
-      ruleMsg = `${label} : ${on ? 'activé' : 'désactivé'}`
+      if (file && server.status === 'running') pending.add(server.id)
     } catch (e) {
       error = (e as Error).message
     } finally {
@@ -181,14 +179,6 @@
     <div class="slide"><input type="range" {min} max={Math.max(max, Number(saved[k]) || 0)} {step} value={n} oninput={(e) => (f[k] = e.currentTarget.value)} aria-valuetext={unit(n)} /><output>{unit(n)}</output></div>
   </label>
 {/snippet}
-{#snippet ruleRow(name: string, label: string)}
-  <div class="row"><div><strong>{label}</strong>{#if server.status !== 'running'}<small>Démarre le serveur pour changer.</small>{/if}</div>
-    <div class="val" role="group" aria-label={label}>
-      <button type="button" class="btn" disabled={busy || server.status !== 'running'} onclick={() => rule(name, true, label)}>Activer</button>
-      <button type="button" class="btn" disabled={busy || server.status !== 'running'} onclick={() => rule(name, false, label)}>Désactiver</button>
-    </div>
-  </div>
-{/snippet}
 {#snippet pick(k: Key, label: string, options: [string, string][])}
   <label class="row"><div><strong>{label}</strong></div><select class="input" bind:value={f[k]}>
     {#each options as [v, l] (v)}<option value={v}>{l}</option>{/each}
@@ -210,16 +200,12 @@
         <label class="row"><div><strong>Mode de jeu</strong></div><select class="input" bind:value={f.gamemode}><option value="survival">Survie</option><option value="creative">Créatif</option><option value="adventure">Aventure</option><option value="spectator">Spectateur</option></select></label>
         {@render toggle(force, 'Imposer le mode de jeu', 'Remis à chaque connexion.')}
         <label class="row"><div><strong>Difficulté</strong>{#if f.hardcore === 'true'}<small>Difficile imposé par le hardcore.</small>{/if}</div><select class="input" bind:value={f.difficulty} disabled={f.hardcore === 'true'}><option value="peaceful">Paisible</option><option value="easy">Facile</option><option value="normal">Normale</option><option value="hard">Difficile</option></select></label>
-        {#if oldRules}
+        {#if oldRules || hasRules}
           {@render toggle(pvp, 'Combat entre joueurs')}
           {@render toggle(blocks, 'Blocs de commande')}
-        {:else}
-          {@render ruleRow('pvp', 'Combat entre joueurs')}
-          {@render ruleRow('command-blocks', 'Blocs de commande')}
         {/if}
         {@render toggle(flight, 'Autoriser le vol', "À activer si un mod fait voler, sinon le joueur est expulsé.")}
       </div>
-      {#if ruleMsg}<p class="note" role="status">{ruleMsg}</p>{/if}
 
     {:else if page === 'world'}
       <h2>Monde</h2>
@@ -270,6 +256,7 @@
 />
 
 <style>
+  .row { border-top: 0; padding-inline: 0; }
   fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   textarea { font: inherit; height: auto; padding-block: 8px; resize: none; }
   .note { color: var(--muted); font-size: 0.89rem; margin-top: 10px; }

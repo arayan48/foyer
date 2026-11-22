@@ -58,7 +58,7 @@ pub async fn act(State(app): S, UrlPath((id, name, action)): UrlPath<(String, St
 }
 
 /// Réglages de `server.properties` devenus des règles de jeu en 1.21.9, renommées en 1.21.11.
-fn rule_command(mc: &str, rule: &str, on: bool) -> Option<String> {
+fn rule_command(mc: &str, rule: &str, on: Option<bool>) -> Option<String> {
     let v = crate::software::key(mc);
     let name = match rule {
         _ if v < vec![1, 21, 9] => return None,
@@ -67,16 +67,83 @@ fn rule_command(mc: &str, rule: &str, on: bool) -> Option<String> {
         "command-blocks" => "command_blocks_work",
         _ => return None,
     };
-    Some(format!("gamerule {name} {on}"))
+    Some(on.map_or(format!("gamerule {name}"), |on| format!("gamerule {name} {on}")))
 }
 
-pub async fn rule(State(app): S, UrlPath((id, rule, on)): UrlPath<(String, String, bool)>) -> Result<StatusCode, Err> {
+/// Règle et valeur annoncées dans la console ; un message de chat (« <Bob> … ») ne compte pas.
+pub fn rule_line(line: &str) -> Option<(&'static str, bool)> {
+    let (_, msg) = line.split_once("]: ")?;
+    let mut msg = msg.trim_end();
+    // changée par un joueur : « [Bob: Gamerule … ] »
+    if let Some(m) = msg.strip_prefix('[').and_then(|m| m.strip_suffix(']')) {
+        let (who, m) = m.split_once(": ")?;
+        msg = Some(m).filter(|_| name_ok(who))?;
+    }
+    let (name, value) = msg.strip_prefix("Gamerule ")?.split_once(" is ")?;
+    let value = value.strip_prefix("now set to: ").or(value.strip_prefix("currently set to: "))?;
+    let rule = match name.strip_prefix("minecraft:").unwrap_or(name) {
+        "pvp" => "pvp",
+        "commandBlocksEnabled" | "command_blocks_work" => "command-blocks",
+        _ => return None,
+    };
+    Some((rule, value.parse().ok()?))
+}
+
+const RULES: [&str; 2] = ["pvp", "command-blocks"];
+type Rules = std::collections::BTreeMap<String, bool>;
+static RULES_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+fn rules_file(app: &App, id: &str) -> std::path::PathBuf {
+    app.data.join("servers").join(id).join("foyer-rules.json")
+}
+
+async fn read_rules(file: &Path) -> Rules {
+    tokio::fs::read(file).await.ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+/// Retient la valeur d'une règle, pour l'afficher et la remettre au démarrage.
+pub async fn save_rule(app: &App, id: &str, rule: &str, on: bool) -> std::io::Result<()> {
+    let _guard = RULES_LOCK.lock().await;
+    let file = rules_file(app, id);
+    let mut r = read_rules(&file).await;
+    if r.insert(rule.into(), on) == Some(on) {
+        return Ok(());
+    }
+    tokio::fs::write(&file, serde_json::to_vec(&r)?).await
+}
+
+async fn rules_mc(app: &App, id: &str) -> String {
     let servers = app.servers.lock().await;
     let label = servers.iter().find(|s| s.id == id && s.game == crate::games::Game::Minecraft).and_then(|s| s.version.clone());
-    drop(servers);
-    let mc = crate::software::parse(label.as_deref()).1.unwrap_or_default();
-    let cmd = rule_command(&mc, &rule, on).ok_or((StatusCode::BAD_REQUEST, "Règle indisponible pour ce serveur".into()))?;
-    send(&app, &id, &cmd).await
+    crate::software::parse(label.as_deref()).1.unwrap_or_default()
+}
+
+/// Serveur prêt : remet les règles choisies, demande la valeur des autres.
+pub async fn apply_rules(app: &App, id: &str) {
+    let mc = rules_mc(app, id).await;
+    let saved = read_rules(&rules_file(app, id)).await;
+    for rule in RULES {
+        let Some(cmd) = rule_command(&mc, rule, saved.get(rule).copied()) else { return };
+        let _ = send(app, id, &cmd).await;
+    }
+}
+
+/// Valeurs connues ; les deux règles sont actives par défaut dans Minecraft.
+pub async fn rules(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<Rules>, Err> {
+    mc_plugins(&app, &id).await?;
+    let mut r: Rules = RULES.iter().map(|k| (k.to_string(), true)).collect();
+    r.extend(read_rules(&rules_file(&app, &id)).await);
+    Ok(Json(r))
+}
+
+/// Tout de suite si le serveur tourne, sinon au prochain démarrage.
+pub async fn rule(State(app): S, UrlPath((id, rule, on)): UrlPath<(String, String, bool)>) -> Result<StatusCode, Err> {
+    let cmd = rule_command(&rules_mc(&app, &id).await, &rule, Some(on)).ok_or((StatusCode::BAD_REQUEST, "Règle indisponible pour ce serveur".into()))?;
+    save_rule(&app, &id, &rule, on).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    match send(&app, &id, &cmd).await {
+        Err((StatusCode::CONFLICT, _)) => Ok(StatusCode::NO_CONTENT),
+        r => r,
+    }
 }
 
 async fn send(app: &App, id: &str, cmd: &str) -> Result<StatusCode, Err> {
@@ -108,10 +175,20 @@ mod tests {
 
     #[test]
     fn regles_de_jeu() {
-        assert_eq!(rule_command("1.21.10", "command-blocks", true).unwrap(), "gamerule commandBlocksEnabled true");
-        assert_eq!(rule_command("26.3", "command-blocks", false).unwrap(), "gamerule command_blocks_work false");
-        assert_eq!(rule_command("1.21.11", "pvp", false).unwrap(), "gamerule pvp false");
-        assert!(rule_command("1.21.8", "pvp", true).is_none() && rule_command("", "pvp", true).is_none() && rule_command("26.3", "stop", true).is_none());
+        assert_eq!(rule_command("1.21.10", "command-blocks", Some(true)).unwrap(), "gamerule commandBlocksEnabled true");
+        assert_eq!(rule_command("26.3", "command-blocks", Some(false)).unwrap(), "gamerule command_blocks_work false");
+        assert_eq!(rule_command("1.21.11", "pvp", None).unwrap(), "gamerule pvp");
+        assert!(rule_command("1.21.8", "pvp", None).is_none() && rule_command("", "pvp", None).is_none() && rule_command("26.3", "stop", None).is_none());
+    }
+
+    #[test]
+    fn regles_dans_la_console() {
+        assert_eq!(rule_line("[20:00:00 INFO]: Gamerule pvp is now set to: false"), Some(("pvp", false)));
+        assert_eq!(rule_line("[20:00:00] [Server thread/INFO]: Gamerule minecraft:command_blocks_work is currently set to: true"), Some(("command-blocks", true)));
+        assert_eq!(rule_line("[20:00:00 INFO]: [Bob: Gamerule pvp is now set to: true]"), Some(("pvp", true)));
+        for l in ["[20:00:00 INFO]: <Bob> Gamerule pvp is now set to: true", "[20:00:00 INFO]: <Bob> ]: Gamerule pvp is now set to: true", "[20:00:00 INFO]: [Bob] Gamerule pvp is now set to: true", "[20:00:00 INFO]: [Bob] a: Gamerule pvp is now set to: true]", "[20:00:00 INFO]: Gamerule keepInventory is now set to: true"] {
+            assert!(rule_line(l).is_none(), "{l}");
+        }
     }
 
     #[test]
