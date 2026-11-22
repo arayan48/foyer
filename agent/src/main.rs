@@ -2,12 +2,14 @@
 //! API HTTP + WebSocket protégée par un jeton, à garder sur le réseau local.
 mod files;
 mod games;
+mod journal;
 mod limits;
+mod players;
 mod trash;
 
 use anyhow::Result;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path as UrlPath, Request, State};
+use axum::extract::{ConnectInfo, Path as UrlPath, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -16,6 +18,7 @@ use axum::{Json, Router};
 use games::Game;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -93,11 +96,15 @@ struct Live {
     cpu: f32,
     mem: u64,
     crashes: VecDeque<Instant>,
+    /// joueurs présents (Minecraft)
+    players: std::collections::BTreeSet<String>,
+    /// taille du dossier en octets, None avant le premier calcul
+    disk: Option<u64>,
 }
 
 impl Live {
     fn new(status: Status) -> Self {
-        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0, crashes: VecDeque::new() }
+        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0, crashes: VecDeque::new(), players: Default::default(), disk: None }
     }
     fn push(&mut self, line: String) {
         if self.log.len() >= LOG_LINES {
@@ -157,6 +164,7 @@ async fn main() -> Result<()> {
 
     let _ = tokio::fs::remove_dir_all(data.join("tmp")).await; // envois interrompus
     tokio::spawn(stats_loop(app.clone()));
+    tokio::spawn(disk_loop(app.clone()));
     tokio::spawn(trash::purge_loop(app.clone()));
     let auto: Vec<String> = app.servers.lock().await.iter().filter(|s| s.auto_start).map(|s| s.id.clone()).collect();
     for id in auto {
@@ -179,8 +187,12 @@ async fn main() -> Result<()> {
         .route("/api/servers/{id}/plugins/{file}", axum::routing::delete(plugin_del).patch(plugin_toggle))
         .route("/api/servers/{id}/files", get(files::list).post(files::mkdir).patch(files::rename).delete(files::delete))
         .route("/api/servers/{id}/files/content", get(files::read).put(files::write))
+        .route("/api/servers/{id}/players", get(players::list))
+        .route("/api/servers/{id}/players/{name}/{action}", post(players::act))
+        .route("/api/journal", get(journal::list))
         .route("/api/trash", get(trash::list))
         .route("/api/trash/{id}", post(trash::restore).delete(trash::purge))
+        .layer(middleware::from_fn_with_state(app.clone(), journal::layer))
         .layer(middleware::from_fn_with_state(app.clone(), auth))
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(app);
@@ -190,7 +202,7 @@ async fn main() -> Result<()> {
     println!("Jeton : fichier {}", data.join("token").display());
     let (tls, fp) = tls(&data).await?;
     println!("Empreinte du certificat : {fp}");
-    axum_server::bind_rustls(addr.parse()?, tls).serve(api.into_make_service()).await?;
+    axum_server::bind_rustls(addr.parse()?, tls).serve(api.into_make_service_with_connect_info::<SocketAddr>()).await?;
     Ok(())
 }
 
@@ -250,6 +262,7 @@ struct ServerView {
     status: Status,
     cpu: f32,
     mem: u64,
+    disk: Option<u64>,
     admin_port: Option<u16>,
 }
 
@@ -262,6 +275,7 @@ async fn list(State(app): S) -> Json<Vec<ServerView>> {
             status: l.map(|l| l.status).unwrap_or(Status::Stopped),
             cpu: l.map(|l| l.cpu).unwrap_or(0.0),
             mem: l.map(|l| l.mem).unwrap_or(0),
+            disk: l.and_then(|l| l.disk),
             admin_port: (s.game == Game::Fivem && s.txadmin).then(|| games::txadmin_port(s.port)),
             server: s,
         }
@@ -655,6 +669,7 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
         let app = app.clone();
         let id = id.to_string();
         let marker = s.game.ready_marker(s.txadmin);
+        let mc = s.game == Game::Minecraft;
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -662,6 +677,9 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
                 if let Some(l) = live.get_mut(&id) {
                     if l.status == Status::Starting && line.contains(marker) {
                         l.status = Status::Running;
+                    }
+                    if mc {
+                        players::track(&mut l.players, &line);
                     }
                     l.push(line);
                 }
@@ -682,6 +700,7 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
             l.pid = None;
             l.cpu = 0.0;
             l.mem = 0;
+            l.players.clear();
             l.push(format!("[foyer] Processus terminé (code {code:?})"));
             if !(crashed && auto) {
                 false
@@ -767,11 +786,11 @@ async fn kill_tree(pid: u32) {
     let _ = c.stdout(Stdio::null()).stderr(Stdio::null()).status().await;
 }
 
-async fn console(State(app): S, UrlPath(id): UrlPath<String>, ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(move |socket| console_ws(app, id, socket))
+async fn console(State(app): S, UrlPath(id): UrlPath<String>, ConnectInfo(addr): ConnectInfo<SocketAddr>, ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(move |socket| console_ws(app, id, addr.ip().to_string(), socket))
 }
 
-async fn console_ws(app: Arc<App>, id: String, mut socket: WebSocket) {
+async fn console_ws(app: Arc<App>, id: String, ip: String, mut socket: WebSocket) {
     let (backlog, mut rx) = {
         let live = app.live.lock().await;
         let Some(l) = live.get(&id) else { return };
@@ -791,6 +810,7 @@ async fn console_ws(app: Arc<App>, id: String, mut socket: WebSocket) {
             },
             msg = socket.recv() => match msg {
                 Some(Ok(Message::Text(cmd))) => {
+                    journal::add(&app, &ip, &format!("CONSOLE {id} {cmd}"), None).await;
                     let mut live = app.live.lock().await;
                     if let Some(l) = live.get_mut(&id) {
                         l.push(format!("> {cmd}"));
@@ -851,6 +871,31 @@ async fn stats_loop(app: Arc<App>) {
     }
 }
 
+/// Taille des dossiers, toutes les 5 min : parcourir un gros monde coûte trop pour `stats_loop`.
+async fn disk_loop(app: Arc<App>) {
+    loop {
+        let ids: Vec<String> = app.servers.lock().await.iter().map(|s| s.id.clone()).collect();
+        for id in ids {
+            let dir = app.data.join("servers").join(&id);
+            let size = tokio::task::spawn_blocking(move || dir_size(&dir)).await.ok();
+            if let Some(l) = app.live.lock().await.get_mut(&id) {
+                l.disk = size;
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(300)).await;
+    }
+}
+
+/// Sans suivre les liens symboliques (DirEntry::metadata ne les suit pas).
+fn dir_size(dir: &std::path::Path) -> u64 {
+    let Ok(rd) = std::fs::read_dir(dir) else { return 0 };
+    rd.flatten().map(|e| match e.metadata() {
+        Ok(m) if m.is_dir() => dir_size(&e.path()),
+        Ok(m) if m.is_file() => m.len(),
+        _ => 0,
+    }).sum()
+}
+
 async fn save(app: &App, servers: &[Server]) {
     let tmp = app.data.join("servers.json.tmp");
     if tokio::fs::write(&tmp, serde_json::to_vec_pretty(servers).unwrap()).await.is_ok() {
@@ -902,6 +947,18 @@ mod tests {
         assert!(!should_retry(&mut c, t + Duration::from_secs(60)));
         // après 10 min les vieux crashs ne comptent plus
         assert!(should_retry(&mut c, t + Duration::from_secs(601)));
+    }
+
+    #[test]
+    fn taille_de_dossier() {
+        let d = std::env::temp_dir().join(format!("foyer-d-{:x}", rand::random::<u64>()));
+        std::fs::create_dir_all(d.join("a/b")).unwrap();
+        std::fs::write(d.join("x"), [0; 10]).unwrap();
+        std::fs::write(d.join("a/b/y"), [0; 5]).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&d, d.join("a/boucle")).unwrap();
+        assert_eq!(dir_size(&d), 15);
+        std::fs::remove_dir_all(d).unwrap();
     }
 
     #[test]

@@ -35,6 +35,8 @@ Deux installeurs construits à partir de la même appli :
 | `main.rs` | serveur HTTPS (axum 0.8 + axum-server/rustls, certificat auto-signé via rcgen), auth, état, cycle de vie des processus, stats, pare-feu, persistance |
 | `games.rs` | recettes de jeux : installation (téléchargements, extraction), commande de lancement, ports, commande d'arrêt, marqueur « prêt » |
 | `files.rs` | fichiers d'un serveur, chemins bloqués dans `servers/<id>` (liens symboliques compris) |
+| `players.rs` | joueurs Minecraft : présents, listes, commandes |
+| `journal.rs` | journal des actions (`actions.log`, 1 Mo puis `actions.log.1`) |
 | `trash.rs` | corbeille des serveurs supprimés |
 | `build.rs` | icône Windows de l'exe |
 
@@ -47,6 +49,7 @@ servers.json          liste des serveurs (id, name, game, port, ram_mb, auto_sta
 runtime/java25/       Java Temurin 25 partagé (Minecraft)
 servers/<id>/         fichiers d'un serveur (server.jar, monde, artifacts FiveM…)
 trash/<id>/           serveur supprimé : server.json + files/
+actions.log           journal des actions
 tmp/                  envois de fichiers en cours, vidé au démarrage
 ```
 
@@ -56,7 +59,7 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | Méthode | Route | Effet |
 |---|---|---|
 | GET | `/api/system` | machine : nom, OS, CPU %, RAM, disque |
-| GET | `/api/servers` | serveurs + statut, cpu, mem, admin_port |
+| GET | `/api/servers` | serveurs + statut, cpu, mem, disk (octets, calculé toutes les 5 min, `null` avant), admin_port |
 | POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` |
 | PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
 | GET / PUT | `/api/servers/{id}/properties` | Minecraft : lit / écrit les clés de `server.properties` (`{clé: valeur}`) ; PUT ne touche qu'aux clés envoyées, refuse le port (passer par PATCH) |
@@ -64,6 +67,9 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | GET | `/api/servers/{id}/files?path=` | liste un dossier `[{name, dir, size, modified}]` ; chemins relatifs avec `/` |
 | POST / PATCH / DELETE | `/api/servers/{id}/files?path=` | crée un dossier / renomme ou déplace `{to}` sans écraser / efface (définitif) |
 | GET / PUT | `/api/servers/{id}/files/content?path=` | télécharge / écrit un fichier (corps brut, sans limite de taille, remplacé une fois tout reçu) |
+| GET | `/api/servers/{id}/players` | Minecraft : `{online, ops, whitelist, banned}` (noms) ; présents suivis dans la console |
+| POST | `/api/servers/{id}/players/{nom}/{action}` | `kick`, `ban`, `pardon`, `op`, `deop`, `whitelist_add`, `whitelist_remove` ; serveur démarré, sinon 409 |
+| GET | `/api/journal` | 200 dernières actions `{at, ip, action, status}` : requêtes qui changent quelque chose et commandes console |
 | GET | `/api/trash` | serveurs supprimés + `deleted_at` |
 | POST / DELETE | `/api/trash/{id}` | restaure (409 si le port est pris) / efface définitivement ; effacement auto après 30 jours |
 | POST | `/api/servers/{id}/start\|stop\|restart` | cycle de vie |
