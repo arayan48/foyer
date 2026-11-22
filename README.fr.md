@@ -35,7 +35,7 @@ Foyer transforme n'importe quelle machine Windows ou Linux en hébergeur de serv
 | Jeu | État | Source |
 |---|---|---|
 | Minecraft (Paper) | ✅ Pris en charge | PaperMC, dernière version stable + Java 25 (Adoptium) |
-| FiveM (txAdmin) | ✅ Pris en charge | Build officiel « recommandé » |
+| FiveM (txAdmin) | 🗺️ Bientôt | Build officiel « recommandé » |
 | D'autres jeux | 🗺️ Prévu | Foyer repose sur un système de recettes pensé pour de nouveaux jeux, voir [ROADMAP.md](ROADMAP.md) |
 
 ## Fonctionnalités

@@ -35,7 +35,7 @@ Foyer convierte cualquier máquina Windows o Linux en un host de servidores de j
 | Juego | Estado | Origen |
 |---|---|---|
 | Minecraft (Paper) | ✅ Compatible | PaperMC, última versión estable + Java 25 (Adoptium) |
-| FiveM (txAdmin) | ✅ Compatible | Build oficial «recommended» |
+| FiveM (txAdmin) | 🗺️ Próximamente | Build oficial «recommended» |
 | Más juegos | 🗺️ Previsto | Foyer usa un sistema de recetas pensado para nuevos juegos, ver [ROADMAP.md](ROADMAP.md) |
 
 ## Funciones

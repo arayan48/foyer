@@ -35,7 +35,7 @@ Foyer turns any Windows or Linux machine into a game server host, without config
 | Game | Status | Source |
 |---|---|---|
 | Minecraft (Paper) | ✅ Supported | PaperMC, latest stable + Java 25 (Adoptium) |
-| FiveM (txAdmin) | ✅ Supported | Official "recommended" build |
+| FiveM (txAdmin) | 🗺️ Coming soon | Official "recommended" build |
 | More games | 🗺️ Planned | Foyer uses a game recipe system built for new titles, see [ROADMAP.md](ROADMAP.md) |
 
 ## Features
