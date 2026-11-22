@@ -58,7 +58,7 @@ pub fn parse(label: Option<&str>) -> (Software, Option<String>) {
     (Software::ALL.into_iter().find(|s| s.label() == name).unwrap_or(Software::Paper), mc)
 }
 
-fn key(v: &str) -> Vec<u32> {
+pub fn key(v: &str) -> Vec<u32> {
     v.split('.').filter_map(|n| n.parse().ok()).collect()
 }
 

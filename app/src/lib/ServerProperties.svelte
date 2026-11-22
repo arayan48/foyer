@@ -54,7 +54,12 @@
     if (id === 'normal') return 'default'
     return Object.keys(LEVELS).find((l) => l.toLowerCase() === id.toLowerCase()) ?? v
   }
-  const write = (k: Key, v: string) => (NAMES[k] && !since('1.14') ? String(NAMES[k].indexOf(v)) : v)
+  // depuis 1.19, Minecraft ne lit plus que les identifiants
+  const IDS: Record<string, string> = { default: 'minecraft:normal', flat: 'minecraft:flat', largeBiomes: 'minecraft:large_biomes', amplified: 'minecraft:amplified' }
+  function write(k: Key, v: string) {
+    if (k === 'level-type' && since('1.19')) return IDS[v] ?? v
+    return NAMES[k] && !since('1.14') ? String(NAMES[k].indexOf(v)) : v
+  }
 
   async function load() {
     error = ''

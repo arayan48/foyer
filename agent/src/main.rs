@@ -435,7 +435,7 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     if n.setup.java.is_some_and(|j| !games::JAVAS.contains(&j)) {
         return bad("Version de Java non proposée");
     }
-    if let Err(e) = n.setup.properties(port) {
+    if let Err(e) = n.setup.properties(port, "") {
         return bad(&e.to_string());
     }
     let fivem = n.game == Game::Fivem;
@@ -800,7 +800,16 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
         let mc = s.game == Game::Minecraft;
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
+            let mut unpacking = false;
+            while let Ok(Some(mut line)) = lines.next_line().await {
+                // Vanilla au premier lancement : une ligne par bibliothèque
+                if mc && line.starts_with("Unpacking ") && line.contains(" to ") {
+                    if unpacking {
+                        continue;
+                    }
+                    unpacking = true;
+                    line = "[foyer] Préparation des fichiers…".into();
+                }
                 let mut live = app.live.lock().await;
                 if let Some(l) = live.get_mut(&id) {
                     if l.status == Status::Starting && line.contains(marker) {

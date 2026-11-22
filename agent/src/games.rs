@@ -91,12 +91,12 @@ pub fn yes() -> bool {
     true
 }
 
-/// Anciens noms, encore compris par les versions récentes de Minecraft.
+/// Noms d'avant Minecraft 1.19, qui ne lit plus que les identifiants (`minecraft:large_biomes`).
 const LEVEL_TYPES: [&str; 4] = ["default", "flat", "largeBiomes", "amplified"];
 
 impl Setup {
     /// Réglages du premier `server.properties`. Une barre oblique inverse y avalerait la ligne suivante.
-    pub fn properties(&self, port: u16) -> Result<String> {
+    pub fn properties(&self, port: u16, mc: &str) -> Result<String> {
         let seed = self.seed.as_deref().unwrap_or("").trim();
         if seed.chars().count() > 100 || seed.contains(|c: char| c == '\\' || c.is_control()) {
             bail!("Graine du monde invalide");
@@ -106,6 +106,13 @@ impl Setup {
         if !LEVEL_TYPES.contains(&kind) {
             bail!("Type de monde inconnu");
         }
+        let kind = match kind {
+            k if software::key(mc) < vec![1, 19] => k,
+            "default" => "minecraft:normal",
+            "flat" => "minecraft:flat",
+            "largeBiomes" => "minecraft:large_biomes",
+            _ => "minecraft:amplified",
+        };
         Ok(format!(
             "server-port={port}\nquery.port={port}\nlevel-seed={seed}\nlevel-type={kind}\nhardcore={}\nonline-mode={}\n",
             self.hardcore,
@@ -150,9 +157,9 @@ pub async fn install(game: Game, data: &Path, dir: &Path, port: u16, name: &str,
     tokio::fs::create_dir_all(dir).await?;
     let label = match game {
         Game::Minecraft => {
-            let props = o.properties(port)?;
             let sw = o.software.unwrap_or(software::Software::Vanilla);
             let label = software::install(sw, data, dir, o.version.as_deref(), o.java, log).await?;
+            let props = o.properties(port, software::parse(Some(&label)).1.as_deref().unwrap_or(""))?;
             tokio::fs::write(dir.join("eula.txt"), "eula=true\n").await?;
             tokio::fs::write(dir.join("server.properties"), props).await?;
             // presque tous les mods Fabric en dépendent
@@ -286,6 +293,10 @@ pub async fn command(game: Game, data: &Path, dir: &Path, port: u16, ram_mb: u32
         Game::Minecraft => {
             let launch = tokio::fs::read_to_string(dir.join(software::LAUNCH)).await.unwrap_or_else(|_| "-jar\nserver.jar".into());
             let mut args = vec![format!("-Xms{ram_mb}M"), format!("-Xmx{ram_mb}M"), "-Dlog4j2.formatMsgNoLookups=true".into()];
+            // sans ces options, les bibliothèques de Minecraft remplissent la console d'avertissements
+            if java >= 24 {
+                args.extend(["--enable-native-access=ALL-UNNAMED", "--sun-misc-unsafe-memory-access=allow"].map(str::to_string));
+            }
             args.extend(launch.lines().map(str::to_string));
             args.push("nogui".into());
             (java_bin(data, java).await?, args, dir.to_path_buf())
@@ -728,12 +739,14 @@ mod tests {
 
     #[test]
     fn reglages_du_monde() {
-        let s = |v: serde_json::Value| serde_json::from_value::<super::Setup>(v).unwrap().properties(25565);
+        let s = |v: serde_json::Value| serde_json::from_value::<super::Setup>(v).unwrap().properties(25565, "1.18.2");
         assert_eq!(s(serde_json::json!({})).unwrap(), "server-port=25565\nquery.port=25565\nlevel-seed=\nlevel-type=default\nhardcore=false\nonline-mode=true\n");
         let p = s(serde_json::json!({ "software": "neoforge", "seed": " 42 ", "level_type": "flat", "hardcore": true, "online_mode": false })).unwrap();
         assert!(p.ends_with("level-seed=42\nlevel-type=flat\nhardcore=true\nonline-mode=false\n"));
         assert!(s(serde_json::json!({ "seed": "a\\" })).is_err() && s(serde_json::json!({ "seed": "a\nop=1" })).is_err());
         assert!(s(serde_json::json!({ "level_type": "x" })).is_err());
+        let kind = |k: &str, mc: &str| super::Setup { level_type: Some(k.into()), ..Default::default() }.properties(1, mc).unwrap().contains("level-type=minecraft:large_biomes\n");
+        assert!(kind("largeBiomes", "1.19") && kind("largeBiomes", "26.3") && !kind("largeBiomes", "1.18.2") && !kind("default", "26.3"));
     }
 
     #[test]
