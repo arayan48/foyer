@@ -15,6 +15,12 @@ let props = { motd: 'Chez nous', difficulty: 'normal', 'max-players': '10' }
 const plugins = [{ file: 'EssentialsX-2.21.jar', enabled: true, size: 3.2e6 }, { file: 'Dynmap-3.7.jar.disabled', enabled: false, size: 8e6 }]
 const sys = { name: 'WIN-RVSDEAUH9KJ', os: 'Windows Server 2025 Standard', cpu: 18, mem_used: 6.1e9, mem_total: 17.1e9, disk_free: 4.6e11, disk_total: 5e11, cores: 4, threads: 8, cpu_model: 'Intel(R) Xeon(R) E-2236 CPU @ 3.40GHz', arch: 'x86_64', kernel: '26100', uptime: 412345, agent: '0.2.0' }
 
+let backing = false
+const backups = [
+  { id: 1795378000, auto: true, reason: 'Avant Vanilla 26.3', version: 'Paper 1.10.2', size: 8.4e7 },
+  { id: 1795300000, auto: false, reason: 'Manuelle', version: 'Paper 1.10.2', size: 8.1e7 },
+]
+
 http.createServer(async (q, r) => {
   r.setHeader('Access-Control-Allow-Origin', '*')
   r.setHeader('Access-Control-Allow-Headers', '*')
@@ -65,6 +71,25 @@ http.createServer(async (q, r) => {
   if (q.url === '/api/system') return json({ ...sys, cpu: 10 + Math.random() * 20 })
   if (q.url === '/api/catalog') return json({ minecraft: [{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.20.4', java: 17 }, { id: '1.16.5', java: 8 }], java: [8, 11, 17, 21, 22, 23, 24, 25], fivem: [{ id: 'recommended', build: '38435' }, { id: 'optional', build: '7290' }, { id: 'latest', build: '38781' }] })
   if (/^\/api\/catalog\/\w+$/.test(q.url)) return json([{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.21.10', java: 21 }, { id: '1.20.4', java: 17 }])
+  const bk = q.url.match(/^\/api\/servers\/(\w+)\/backups(?:\/(\d+))?$/)
+  if (bk) {
+    const s = servers.find((s) => s.id === bk[1])
+    if (q.method === 'DELETE') return backups.splice(backups.findIndex((b) => b.id == bk[2]), 1), r.writeHead(204).end()
+    if (q.method === 'POST') {
+      const old = s.status
+      if (old === 'stopped') s.status = 'busy'
+      backing = true
+      setTimeout(() => {
+        backing = false
+        s.status = old
+        const b = backups.find((b) => b.id == bk[2])
+        backups.unshift({ id: Math.floor(Date.now() / 1000), auto: !!b, reason: b ? 'Avant restauration' : 'Manuelle', version: s.version, size: 9e7 })
+        if (b) s.version = b.version
+      }, 3000)
+      return r.writeHead(204).end()
+    }
+    return json({ backups, running: backing, error: null })
+  }
   const sw = q.url.match(/^\/api\/servers\/(\w+)\/software$/)
   if (sw) {
     let b = ''

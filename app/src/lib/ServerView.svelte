@@ -8,6 +8,7 @@
   import ServerFivem from './ServerFivem.svelte'
   import ServerProperties from './ServerProperties.svelte'
   import ServerPlugins from './ServerPlugins.svelte'
+  import ServerBackups from './ServerBackups.svelte'
   import ServerFiles from './ServerFiles.svelte'
   import ServerPlayers from './ServerPlayers.svelte'
   import ServerSoon from './ServerSoon.svelte'
@@ -33,7 +34,7 @@
     ...(addons ? [{ id: 'plugins', label: addons === 'mods' ? 'Mods' : 'Plugins', icon: Puzzle }] : []),
     { id: 'players', label: 'Joueurs', icon: Users, soon: !mc },
     { id: 'files', label: 'Fichiers', icon: FolderOpen },
-    { id: 'backups', label: 'Sauvegardes', icon: Archive, soon: true },
+    { id: 'backups', label: 'Sauvegardes', icon: Archive },
   ])
   let tab = $state('console')
 
@@ -61,7 +62,7 @@
       <button class="btn primary" onclick={() => onaction(server, 'start')}><Play size={15} /> Démarrer</button>
     {:else}
       <button class="btn" disabled={server.status !== 'running'} onclick={() => onaction(server, 'restart')}><RotateCw size={15} /> Redémarrer</button>
-      <button class="btn" disabled={server.status === 'installing' || server.status === 'stopping'} onclick={() => onaction(server, 'stop')}><Square size={14} /> Arrêter</button>
+      <button class="btn" disabled={server.status === 'installing' || server.status === 'busy' || server.status === 'stopping'} onclick={() => onaction(server, 'stop')}><Square size={14} /> Arrêter</button>
     {/if}
   </div>
 </header>
@@ -98,7 +99,7 @@
       {:else if tab === 'files'}
         <ServerFiles {conn} {server} />
       {:else}
-        <ServerSoon icon={Archive} title="Sauvegardes" text="Sauvegardes à la main ou planifiées, restauration en un clic, nombre de copies à garder." />
+        <ServerBackups {conn} {server} />
       {/if}
     </div>
   {/key}
@@ -111,7 +112,7 @@
   .sub { color: var(--muted); }
   .num { font-variant-numeric: tabular-nums; }
   .st.running { color: var(--ok); } .st.error { color: var(--err); }
-  .st.starting, .st.installing, .st.stopping { color: var(--warn); }
+  .st.starting, .st.installing, .st.stopping, .st.busy { color: var(--warn); }
   .actions { display: flex; gap: 6px; }
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
   .tabs button {

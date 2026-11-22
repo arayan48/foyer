@@ -61,7 +61,7 @@
             <button class="btn act" onclick={() => onaction(s, 'start')}><Play size={15} /> Démarrer</button>
           {:else}
             <button class="btn icon" title="Redémarrer" aria-label="Redémarrer" disabled={s.status !== 'running'} onclick={() => onaction(s, 'restart')}><RotateCw size={15} /></button>
-            <button class="btn act" disabled={s.status === 'installing' || s.status === 'stopping'} onclick={() => onaction(s, 'stop')}><Square size={14} /> Arrêter</button>
+            <button class="btn act" disabled={s.status === 'installing' || s.status === 'busy' || s.status === 'stopping'} onclick={() => onaction(s, 'stop')}><Square size={14} /> Arrêter</button>
           {/if}
           <button class="btn icon" title="Console" aria-label="Console" onclick={() => onopen(s)}><TerminalSquare size={15} /></button>
         </span>
@@ -89,8 +89,8 @@
   .status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
   .status i { width: 8px; height: 8px; border-radius: 50%; background: oklch(0.5 0.008 50); }
   .status.running { color: var(--ok); } .status.running i { background: var(--ok); box-shadow: 0 0 0 3px rgb(149 166 118 / 0.2); }
-  .status.starting i, .status.installing i, .status.stopping i { background: var(--warn); animation: pulse 1s infinite; }
-  .status.starting, .status.installing, .status.stopping { color: var(--warn); }
+  .status.starting i, .status.installing i, .status.stopping i, .status.busy i { background: var(--warn); animation: pulse 1s infinite; }
+  .status.starting, .status.installing, .status.stopping, .status.busy { color: var(--warn); }
   .status.error { color: var(--err); } .status.error i { background: var(--err); }
   .meter { display: grid; grid-template-columns: 14px 1fr; grid-template-rows: auto auto; column-gap: 8px; font-size: 0.79rem; }
   .lbl { color: var(--muted); grid-row: span 2; align-self: center; }

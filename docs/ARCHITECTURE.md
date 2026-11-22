@@ -35,6 +35,7 @@ Deux installeurs construits à partir de la même appli :
 | `main.rs` | serveur HTTPS (axum 0.8 + axum-server/rustls, certificat auto-signé via rcgen), auth, état, cycle de vie des processus, stats, pare-feu, persistance |
 | `games.rs` | recettes de jeux : installation (téléchargements, extraction), commande de lancement, ports, commande d'arrêt, marqueur « prêt » |
 | `files.rs` | fichiers d'un serveur, chemins bloqués dans `servers/<id>` (liens symboliques compris) |
+| `backups.rs` | archives `backups/<id>/<date>.tar.gz`, restauration, reprise après coupure |
 | `orphans.rs` | au démarrage de l'agent, arrête les jeux laissés par un agent coupé net |
 | `software.rs` | logiciels Minecraft (Vanilla, Paper, Purpur, Fabric, Forge, NeoForge) : versions et installation |
 | `players.rs` | joueurs Minecraft : présents, listes, commandes |
@@ -66,6 +67,8 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` |
 | PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
 | GET | `/api/catalog/{logiciel}` | versions de Minecraft d'un logiciel, la plus récente d'abord |
+| GET / POST | `/api/servers/{id}/backups` | liste `{backups, running, error}` / lance une sauvegarde (à chaud pour Minecraft) |
+| POST / DELETE | `/api/servers/{id}/backups/{date}` | restaure (serveur arrêté, état actuel sauvegardé avant) / efface |
 | POST | `/api/servers/{id}/software` | Minecraft, serveur arrêté : installe `{software, version}`, garde mondes et réglages |
 | GET / PUT | `/api/servers/{id}/properties` | Minecraft : lit / écrit les clés de `server.properties` (`{clé: valeur}`) ; PUT ne touche qu'aux clés envoyées, refuse le port (passer par PATCH) |
 | DELETE | `/api/servers/{id}` | arrête, retire le pare-feu, met le dossier à la corbeille ; 409 pendant l'installation |

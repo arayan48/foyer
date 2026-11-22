@@ -1,5 +1,6 @@
 //! Foyer agent : installe, lance et surveille des serveurs de jeu.
 //! API HTTP + WebSocket protégée par un jeton, à garder sur le réseau local.
+mod backups;
 mod files;
 mod games;
 mod journal;
@@ -86,6 +87,8 @@ enum Status {
     Starting,
     Running,
     Stopping,
+    /// sauvegarde ou restauration, serveur arrêté
+    Busy,
     Error,
 }
 
@@ -102,11 +105,14 @@ struct Live {
     players: std::collections::BTreeSet<String>,
     /// taille du dossier en octets, None avant le premier calcul
     disk: Option<u64>,
+    /// sauvegarde ou restauration en cours, serveur allumé ou non
+    backing: bool,
+    backup_error: Option<String>,
 }
 
 impl Live {
     fn new(status: Status) -> Self {
-        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0, crashes: VecDeque::new(), players: Default::default(), disk: None }
+        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0, crashes: VecDeque::new(), players: Default::default(), disk: None, backing: false, backup_error: None }
     }
     fn push(&mut self, line: String) {
         if self.log.len() >= LOG_LINES {
@@ -176,6 +182,7 @@ async fn run() -> Result<()> {
     let app = Arc::new(App { data: data.clone(), token, servers: Mutex::new(servers), live: Mutex::new(live), failures: Default::default(), host: Default::default() });
 
     orphans::stop(&data).await;
+    backups::recover(&data).await;
     let _ = tokio::fs::remove_dir_all(data.join("tmp")).await; // envois interrompus
     tokio::spawn(stats_loop(app.clone()));
     tokio::spawn(disk_loop(app.clone()));
@@ -203,6 +210,8 @@ async fn run() -> Result<()> {
         .route("/api/servers/{id}/plugins/{file}", axum::routing::delete(plugin_del).patch(plugin_toggle))
         .route("/api/servers/{id}/files", get(files::list).post(files::mkdir).patch(files::rename).delete(files::delete))
         .route("/api/servers/{id}/files/content", get(files::read).put(files::write))
+        .route("/api/servers/{id}/backups", get(backups::list).post(backups::add))
+        .route("/api/servers/{id}/backups/{backup}", post(backups::restore).delete(backups::delete))
         .route("/api/servers/{id}/players", get(players::list))
         .route("/api/servers/{id}/players/{name}/{action}", post(players::act))
         .route("/api/journal", get(journal::list))
@@ -362,13 +371,20 @@ async fn software_set(State(app): S, UrlPath(id): UrlPath<String>, Json(b): Json
     let java = games::java_for(&b.version);
     {
         let mut live = app.live.lock().await;
-        let l = live.get_mut(&id).filter(|l| matches!(l.status, Status::Stopped | Status::Error)).ok_or((StatusCode::CONFLICT, "Arrête le serveur d'abord".into()))?;
+        let l = live.get_mut(&id).filter(|l| !l.backing && matches!(l.status, Status::Stopped | Status::Error)).ok_or((StatusCode::CONFLICT, "Arrête le serveur d'abord".into()))?;
         l.status = Status::Installing;
     }
     tokio::spawn(async move {
         let dir = app.data.join("servers").join(&id);
         let log = logger(&app, &id);
-        let r = software::install(b.software, &app.data, &dir, Some(&b.version), Some(java), &log).await;
+        let r = async {
+            if dir.exists() {
+                log("Sauvegarde avant le changement…".into());
+                backups::create(&app, &id, &format!("Avant {} {}", b.software.label(), b.version), true, false).await?;
+            }
+            software::install(b.software, &app.data, &dir, Some(&b.version), Some(java), &log).await
+        }
+        .await;
         if let Ok(v) = &r {
             log(format!("{v} installé."));
             let mut servers = app.servers.lock().await;
@@ -549,8 +565,8 @@ async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch
 
 /// Arrête le serveur et le met à la corbeille.
 async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> Result<StatusCode, Err> {
-    if app.live.lock().await.get(&id).is_some_and(|l| l.status == Status::Installing) {
-        return Err((StatusCode::CONFLICT, "Attends la fin de l'installation".into()));
+    if app.live.lock().await.get(&id).is_some_and(|l| l.backing || l.status == Status::Installing) {
+        return Err((StatusCode::CONFLICT, "Attends la fin de l'opération en cours".into()));
     }
     stop(&app, &id).await;
     let mut servers = app.servers.lock().await;
@@ -689,18 +705,23 @@ async fn action(State(app): S, UrlPath((id, action)): UrlPath<(String, String)>)
 fn start(app: &Arc<App>, id: &str) -> futures_util::future::BoxFuture<'static, Result<()>> {
     // boxé : start est rappelé depuis sa propre tâche de surveillance (redémarrage auto)
     let (app, id) = (app.clone(), id.to_string());
-    Box::pin(async move { start_inner(&app, &id).await })
+    Box::pin(async move {
+        // réservé tout de suite : une restauration ne peut pas s'intercaler
+        match app.live.lock().await.get_mut(&id) {
+            Some(l) if !l.backing && matches!(l.status, Status::Stopped | Status::Error) => l.status = Status::Starting,
+            Some(_) => anyhow::bail!("le serveur n'est pas arrêté"),
+            None => anyhow::bail!("serveur inconnu"),
+        }
+        let r = start_inner(&app, &id).await;
+        if r.is_err() {
+            if let Some(l) = app.live.lock().await.get_mut(&id).filter(|l| l.pid.is_none()) { l.status = Status::Error }
+        }
+        r
+    })
 }
 
 async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
     let s = app.servers.lock().await.iter().find(|s| s.id == id).cloned().ok_or_else(|| anyhow::anyhow!("serveur inconnu"))?;
-    {
-        let live = app.live.lock().await;
-        let st = live.get(id).map(|l| l.status);
-        if !matches!(st, Some(Status::Stopped | Status::Error)) {
-            anyhow::bail!("le serveur n'est pas arrêté");
-        }
-    }
     let dir = app.data.join("servers").join(id);
     if s.game == Game::Fivem && app.data.join("runtime").join("mariadb-data").exists() {
         if let Err(e) = games::mariadb_start(&app.data).await {

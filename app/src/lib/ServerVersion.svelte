@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Package, Download, RefreshCw, History } from 'lucide-svelte'
   import SubPages from './SubPages.svelte'
+  import ServerBackups from './ServerBackups.svelte'
   import Confirm from './Confirm.svelte'
   import { SOFTWARE, call, cmpVersion, patchServer, software, type Catalog, type Conn, type Server, type Software } from './api'
 
@@ -146,7 +147,7 @@
     </div>
 
   {:else if page === 'rollback'}
-    <h2>Revenir à une version <span class="soon">Bientôt</span></h2>
+    <ServerBackups {conn} {server} auto />
   {/if}
 </SubPages>
 
@@ -154,8 +155,8 @@
   bind:open={ask}
   title="Installer {SOFTWARE[pick].label} {version} ?"
   text={older
-    ? `Cette version est plus ancienne que ${now.mc} : un monde déjà ouvert en ${now.mc} risque d'être abîmé. Copie le dossier du serveur avant.`
-    : 'Le monde et les réglages restent, mais un monde déjà créé peut mal supporter le changement. Copie le dossier du serveur avant.'}
+    ? `Cette version est plus ancienne que ${now.mc} : un monde déjà ouvert en ${now.mc} risque d'être abîmé. Le serveur est sauvegardé avant.`
+    : 'Le monde et les réglages restent, mais un monde déjà créé peut mal supporter le changement. Le serveur est sauvegardé avant.'}
   action="Installer"
   onconfirm={install}
 />

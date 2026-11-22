@@ -107,6 +107,7 @@ pub async fn purge(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Status
     let _servers = app.servers.lock().await; // pas en même temps qu'une restauration
     load(&app, &id).await?;
     tokio::fs::remove_dir_all(slot(&app, &id)?).await.map_err(fail)?;
+    crate::backups::forget(&app.data, &id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -118,6 +119,7 @@ async fn purge_old(app: &App, now: u64) {
         if old && !servers.iter().any(|s| s.id == t.server.id) {
             if let Ok(p) = slot(app, &t.server.id) {
                 let _ = tokio::fs::remove_dir_all(p).await;
+                crate::backups::forget(&app.data, &t.server.id).await;
             }
         }
     }

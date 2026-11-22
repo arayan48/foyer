@@ -1,5 +1,5 @@
 export type Game = 'minecraft' | 'fivem' | 'valheim' | 'terraria'
-export type Status = 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'error'
+export type Status = 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'busy' | 'error'
 
 export interface Server {
   id: string
@@ -230,6 +230,7 @@ export function cmpVersion(a: string, b: string) {
 
 export const STATUS: Record<Status, string> = {
   installing: 'Installation',
+  busy: 'Sauvegarde',
   stopped: 'Arrêté',
   starting: 'Démarrage',
   running: 'En ligne',
