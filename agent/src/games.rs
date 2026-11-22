@@ -101,6 +101,7 @@ impl Setup {
         if seed.chars().count() > 100 || seed.contains(|c: char| c == '\\' || c.is_control()) {
             bail!("Graine du monde invalide");
         }
+        let seed = ascii(seed);
         let kind = self.level_type.as_deref().unwrap_or("default");
         if !LEVEL_TYPES.contains(&kind) {
             bail!("Type de monde inconnu");
@@ -589,14 +590,67 @@ pub fn set_props(text: &str, kv: &[(&str, &str)]) -> String {
     for line in text.lines() {
         let key = line.split('=').next().unwrap_or("").trim();
         match kv.iter().position(|(k, _)| *k == key && !line.trim_start().starts_with('#')) {
-            Some(i) => { out.push(format!("{}={}", kv[i].0, kv[i].1)); seen[i] = true; }
+            Some(i) => { out.push(format!("{}={}", kv[i].0, prop_value(kv[i].1))); seen[i] = true; }
             None => out.push(line.to_string()),
         }
     }
     for (i, (k, v)) in kv.iter().enumerate() {
-        if !seen[i] { out.push(format!("{k}={v}")); }
+        if !seen[i] { out.push(format!("{k}={}", prop_value(v))); }
     }
-    out.join("\n") + "\n"
+    ascii(&(out.join("\n") + "\n"))
+}
+
+/// `\uXXXX` hors ASCII : lu pareil par toutes les versions (Latin-1 avant 1.20, UTF-8 ensuite).
+fn ascii(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.chars() {
+        if c.is_ascii() {
+            out.push(c);
+        } else {
+            for u in c.encode_utf16(&mut [0; 2]) {
+                out += &format!("\\u{u:04X}");
+            }
+        }
+    }
+    out
+}
+
+fn prop_value(v: &str) -> String {
+    let v = v.replace('\\', "\\\\").replace('\n', "\\n");
+    if v.starts_with(' ') { format!("\\{v}") } else { v }
+}
+
+/// Décode les échappements Java : `\u00e9`, `\:`, `\\`…
+fn unescape(v: &str) -> String {
+    let mut out: Vec<u16> = Vec::new();
+    let mut it = v.chars();
+    while let Some(c) = it.next() {
+        let c = match c {
+            '\\' => match it.next() {
+                Some('u') => {
+                    let hex: String = it.by_ref().take(4).collect();
+                    out.extend(u16::from_str_radix(&hex, 16));
+                    continue;
+                }
+                Some('n') => '\n',
+                Some('t') => '\t',
+                Some(c) => c,
+                None => continue,
+            },
+            c => c,
+        };
+        out.extend(c.encode_utf16(&mut [0; 2]).iter());
+    }
+    String::from_utf16_lossy(&out)
+}
+
+/// Lit `server.properties` (UTF-8, ou Latin-1 avant Minecraft 1.20). Absent : vide. Illisible : erreur, pour ne pas l'écraser.
+pub async fn read_props(p: &Path) -> std::io::Result<String> {
+    match tokio::fs::read(p).await {
+        Ok(b) => Ok(String::from_utf8(b).unwrap_or_else(|e| e.as_bytes().iter().map(|b| *b as char).collect())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(e),
+    }
 }
 
 /// Lit les clés d'un `server.properties` (commentaires et lignes vides ignorés).
@@ -604,7 +658,7 @@ pub fn parse_props(text: &str) -> std::collections::BTreeMap<String, String> {
     text.lines()
         .map(str::trim_start)
         .filter(|l| !l.is_empty() && !l.starts_with(['#', '!']))
-        .filter_map(|l| l.split_once('=').map(|(k, v)| (k.trim().to_string(), v.to_string())))
+        .filter_map(|l| l.split_once('=').map(|(k, v)| (k.trim().to_string(), unescape(v.trim_start()))))
         .collect()
 }
 
@@ -615,6 +669,25 @@ mod tests {
         let m = super::parse_props("#c\nmotd=a=b\n\ndifficulty=hard\n");
         assert_eq!(m.len(), 2);
         assert_eq!((m["motd"].as_str(), m["difficulty"].as_str()), ("a=b", "hard"));
+    }
+
+    #[test]
+    fn props_accents_et_echappements() {
+        for v in ["Chez Léa §a🎮", "a\\b", " x", "http://a=b", "a\nop=1"] {
+            let t = super::set_props("", &[("motd", v)]);
+            assert!(t.is_ascii());
+            assert_eq!(super::parse_props(&t)["motd"], v);
+        }
+        assert_eq!(super::parse_props("level-type=minecraft\\:normal\n")["level-type"], "minecraft:normal");
+    }
+
+    #[tokio::test]
+    async fn props_latin1() {
+        let f = std::env::temp_dir().join("foyer-test-latin1.properties");
+        std::fs::write(&f, b"motd=L\xe9a\n").unwrap();
+        let t = super::read_props(&f).await.unwrap();
+        assert_eq!(super::parse_props(&t)["motd"], "Léa");
+        std::fs::remove_file(&f).ok();
     }
 
     #[test]

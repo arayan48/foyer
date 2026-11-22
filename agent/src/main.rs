@@ -555,7 +555,7 @@ async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch
             return bad("Arrête le serveur avant de changer le port");
         }
         let props = app.data.join("servers").join(&id).join("server.properties");
-        let text = tokio::fs::read_to_string(&props).await.unwrap_or_default();
+        let text = games::read_props(&props).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("server.properties : {e}")))?;
         if let Err(e) = tokio::fs::write(&props, games::set_props(&text, &[("server-port", &port.to_string()), ("query.port", &port.to_string())])).await {
             return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("server.properties : {e}")));
         }
@@ -616,7 +616,7 @@ async fn mc_props(app: &App, id: &str) -> Result<PathBuf, Err> {
 }
 
 async fn props_get(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<std::collections::BTreeMap<String, String>>, Err> {
-    let text = tokio::fs::read_to_string(mc_props(&app, &id).await?).await.unwrap_or_default();
+    let text = games::read_props(&mc_props(&app, &id).await?).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("server.properties : {e}")))?;
     Ok(Json(games::parse_props(&text)))
 }
 
@@ -625,14 +625,14 @@ async fn props_put(State(app): S, UrlPath(id): UrlPath<String>, Json(kv): Json<s
     let path = mc_props(&app, &id).await?;
     let bad = |m: String| Err((StatusCode::BAD_REQUEST, m));
     for (k, v) in &kv {
-        if k.is_empty() || k.contains(['=', ':', '#', '!', ' ', '\n', '\r']) || v.contains(['\n', '\r']) {
+        if k.is_empty() || k.contains(['=', ':', '#', '!', ' ', '\n', '\r']) || v.contains('\r') {
             return bad(format!("Valeur invalide : {k}"));
         }
         if k == "server-port" || k == "query.port" {
             return bad("Change le port dans les paramètres du serveur".into());
         }
     }
-    let text = tokio::fs::read_to_string(&path).await.unwrap_or_default();
+    let text = games::read_props(&path).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("server.properties : {e}")))?;
     let pairs: Vec<(&str, &str)> = kv.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
     tokio::fs::write(&path, games::set_props(&text, &pairs)).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("server.properties : {e}")))?;
     Ok(StatusCode::NO_CONTENT)

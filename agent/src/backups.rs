@@ -219,7 +219,7 @@ async fn put_back(app: &Arc<App>, id: &str, b: &Backup) -> Result<()> {
         let port = app.servers.lock().await.iter().find(|s| s.id == id && s.game == games::Game::Minecraft).map(|s| s.port.to_string());
         if let Some(p) = port {
             let file = new.join("server.properties");
-            let text = tokio::fs::read_to_string(&file).await.unwrap_or_default();
+            let text = games::read_props(&file).await?;
             tokio::fs::write(&file, games::set_props(&text, &[("server-port", &p), ("query.port", &p)])).await?;
         }
         if live.exists() {
