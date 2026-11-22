@@ -1,6 +1,6 @@
 <script lang="ts">
   import wordmark from './assets/wordmark.svg?raw'
-  import { LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon, Activity, Users, Archive, CalendarClock, ScrollText, Globe, BookOpen, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
+  import { LayoutDashboard, Server as ServerIcon, Settings as SettingsIcon, Activity, Users, Archive, CalendarClock, ScrollText, Globe, BookOpen, Trash2, Cpu, MemoryStick, HardDrive } from 'lucide-svelte'
   import Logo from './lib/Logo.svelte'
   import GithubMark from './lib/GithubMark.svelte'
   import ServerSoon from './lib/ServerSoon.svelte'
@@ -8,6 +8,8 @@
   import ServerList from './lib/ServerList.svelte'
   import Dashboard from './lib/Dashboard.svelte'
   import NewServer from './lib/NewServer.svelte'
+  import Journal from './lib/Journal.svelte'
+  import Trash from './lib/Trash.svelte'
   import ServerView from './lib/ServerView.svelte'
   import Update from './lib/Update.svelte'
   import SettingsView from './lib/SettingsView.svelte'
@@ -20,7 +22,7 @@
   let servers = $state<Server[]>([])
   let sys = $state<Host | null>(null)
   let loading = $state(true)
-  let view = $state<{ name: 'home' } | { name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'server'; id: string } | { name: 'soon'; id: string }>({ name: 'home' })
+  let view = $state<{ name: 'home' } | { name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'journal' } | { name: 'trash' } | { name: 'server'; id: string } | { name: 'soon'; id: string }>({ name: 'home' })
 
   // pages prévues : visibles dès maintenant pour situer la suite
   const SOON = [
@@ -28,7 +30,6 @@
     { id: 'players', label: 'Joueurs', icon: Users, title: 'Joueurs', text: 'Qui joue où, historique des connexions, bannissements et liste blanche au même endroit.' },
     { id: 'backups', label: 'Sauvegardes', icon: Archive, title: 'Sauvegardes', text: 'Copies automatiques des mondes, restauration en un clic.' },
     { id: 'tasks', label: 'Planification', icon: CalendarClock, title: 'Tâches planifiées', text: 'Redémarrage chaque nuit, annonces, sauvegardes à heure fixe.' },
-    { id: 'logs', label: 'Journal', icon: ScrollText, title: 'Journal', text: "Tout ce qui s'est passé : démarrages, plantages, changements de réglages." },
   ]
   const soon = $derived(view.name === 'soon' ? SOON.find((p) => p.id === (view as { id: string }).id) : undefined)
   let toast = $state('')
@@ -87,7 +88,7 @@
     try {
       await call(conn!, `/api/servers/${s.id}`, { method: 'DELETE' })
       view = { name: 'list' }
-      say(`« ${s.name} » supprimé.`)
+      say(`« ${s.name} » mis à la corbeille.`)
     } catch (e) {
       say((e as Error).message)
     }
@@ -118,6 +119,12 @@
       <button class="nav-item" class:on={['list', 'new', 'server'].includes(view.name)} aria-current={['list', 'new', 'server'].includes(view.name) ? 'page' : undefined} onclick={() => (view = { name: 'list' })}>
         <ServerIcon size={17} /> Serveurs <span class="n">{servers.length}</span>
       </button>
+      <button class="nav-item" class:on={view.name === 'journal'} aria-current={view.name === 'journal' ? 'page' : undefined} onclick={() => (view = { name: 'journal' })}>
+        <ScrollText size={17} /> Journal
+      </button>
+      <button class="nav-item" class:on={view.name === 'trash'} aria-current={view.name === 'trash' ? 'page' : undefined} onclick={() => (view = { name: 'trash' })}>
+        <Trash2 size={17} /> Corbeille
+      </button>
       <p class="group">Bientôt</p>
       {#each SOON as p (p.id)}
         <button class="nav-item later" class:on={soon?.id === p.id} aria-current={soon?.id === p.id ? 'page' : undefined} onclick={() => (view = { name: 'soon', id: p.id })}>
@@ -147,6 +154,10 @@
       <div class="page">
       {#if view.name === 'settings'}
         <SettingsView conn={conn} {sys} onlogout={logout} />
+      {:else if view.name === 'journal'}
+        <Journal {conn} {servers} />
+      {:else if view.name === 'trash'}
+        <Trash {conn} onrestored={(s) => { say(`« ${s.name} » restauré.`); refresh() }} />
       {:else if view.name === 'home'}
         <Dashboard {servers} {sys} {loading} onnew={() => (view = { name: 'new' })} onopen={(s) => (view = { name: 'server', id: s.id })} onaction={act} />
       {:else if view.name === 'soon' && soon}

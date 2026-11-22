@@ -50,6 +50,8 @@ pub fn run() {
       set_close_to_tray,
       agent::agent_probe,
       agent::agent_call,
+      agent::file_upload,
+      agent::file_download,
       agent::console_open,
       agent::console_send,
       agent::console_close

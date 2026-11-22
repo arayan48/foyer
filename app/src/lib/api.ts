@@ -20,8 +20,11 @@ export interface Server {
   java?: number
   txadmin?: boolean
   framework?: 'vanilla' | 'esx' | 'qbcore' | null
-  // à venir côté agent : la console les affiche dès qu'ils existent
+  /** taille du dossier en octets, null avant le premier calcul */
+  disk?: number | null
+  /** joueurs présents (Minecraft) */
   players?: string[]
+  // à venir côté agent : la console les affiche dès qu'ils existent
   max_players?: number
   uptime_s?: number
 }
@@ -87,7 +90,8 @@ export function normalizeUrl(u: string) {
 
 export class AuthError extends Error {}
 
-export async function call<T>(c: Conn, path: string, init: RequestInit = {}): Promise<T> {
+/** Réponse brute, pour le contenu des fichiers. */
+export async function callText(c: Conn, path: string, init: RequestInit = {}): Promise<string> {
   let status: number, text: string
   if (inTauri) {
     const { invoke } = await tauri()
@@ -108,7 +112,41 @@ export async function call<T>(c: Conn, path: string, init: RequestInit = {}): Pr
   }
   if (status === 401) throw new AuthError('Jeton refusé')
   if (status < 200 || status >= 300) throw new Error(text || `Erreur ${status}`)
-  return status === 204 || !text ? (undefined as T) : JSON.parse(text)
+  return text
+}
+
+export async function call<T>(c: Conn, path: string, init: RequestInit = {}): Promise<T> {
+  const text = await callText(c, path, init)
+  return text ? JSON.parse(text) : (undefined as T)
+}
+
+/** Envoie un fichier tel quel, octets compris. */
+export async function upload(c: Conn, path: string, file: File) {
+  if (!inTauri) return void (await callText(c, path, { method: 'PUT', body: file }))
+  const { invoke } = await tauri()
+  try {
+    await invoke('file_upload', new Uint8Array(await file.arrayBuffer()), { headers: { url: c.url, fp: c.fp ?? '', token: c.token, path } })
+  } catch (e) {
+    throw new Error(String(e))
+  }
+}
+
+/** Télécharge un fichier. Dans l'appli : vers Téléchargements, renvoie le chemin. */
+export async function download(c: Conn, path: string, name: string): Promise<string> {
+  if (inTauri) {
+    const { invoke } = await tauri()
+    try {
+      return await invoke<string>('file_download', { url: c.url, fp: c.fp ?? '', token: c.token, path, name })
+    } catch (e) {
+      throw new Error(String(e))
+    }
+  }
+  const r = await fetch(c.url + path, { headers: { Authorization: `Bearer ${c.token}` } })
+  if (!r.ok) throw new Error((await r.text()) || `Erreur ${r.status}`)
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: name })
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 60_000)
+  return ''
 }
 
 /** Empreinte du certificat présenté par l'agent, lue sans envoyer le jeton. */
@@ -202,4 +240,14 @@ export const STATUS: Record<Status, string> = {
 export function bytes(n: number) {
   if (n >= 1024 ** 3) return (n / 1024 ** 3).toFixed(1).replace('.', ',') + ' Go'
   return Math.round(n / 1024 ** 2) + ' Mo'
+}
+
+/** Taille d'un fichier, octets et Ko compris. */
+export function size(n: number) {
+  return n < 1024 ? `${n} o` : n < 1024 ** 2 ? `${Math.round(n / 1024)} Ko` : bytes(n)
+}
+
+/** Secondes Unix → « 22/11/2026 20:57 ». */
+export function when(s: number) {
+  return new Date(s * 1000).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }

@@ -310,6 +310,9 @@ struct ServerView {
     cpu: f32,
     mem: u64,
     disk: Option<u64>,
+    /// joueurs présents, Minecraft seulement
+    #[serde(skip_serializing_if = "Option::is_none")]
+    players: Option<std::collections::BTreeSet<String>>,
     admin_port: Option<u16>,
 }
 
@@ -323,6 +326,7 @@ async fn list(State(app): S) -> Json<Vec<ServerView>> {
             cpu: l.map(|l| l.cpu).unwrap_or(0.0),
             mem: l.map(|l| l.mem).unwrap_or(0),
             disk: l.and_then(|l| l.disk),
+            players: l.filter(|_| s.game == Game::Minecraft).map(|l| l.players.clone()),
             admin_port: (s.game == Game::Fivem && s.txadmin).then(|| games::txadmin_port(s.port)),
             server: s,
         }

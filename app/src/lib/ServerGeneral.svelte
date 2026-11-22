@@ -3,7 +3,7 @@
   import SaveBar from './SaveBar.svelte'
   import Confirm from './Confirm.svelte'
   import SubPages from './SubPages.svelte'
-  import { call, patchServer, type Conn, type Host, type Server } from './api'
+  import { bytes, call, patchServer, type Conn, type Host, type Server } from './api'
 
   let { conn, server, ondelete }: { conn: Conn; server: Server; ondelete: (s: Server) => void } = $props()
 
@@ -57,6 +57,12 @@
           <div><strong>Port</strong><small>{server.game === 'minecraft' ? "Se change dans l'onglet Réseau." : 'Se change dans txAdmin.'}</small></div>
           <div class="val">{server.port}</div>
         </div>
+        {#if server.disk != null}
+          <div class="row">
+            <div><strong>Espace disque</strong></div>
+            <div class="val">{bytes(server.disk)}</div>
+          </div>
+        {/if}
       </div>
 
     {:else if page === 'resources'}
@@ -111,14 +117,13 @@
 
     {:else}
       <h2>Zone sensible</h2>
-      <p class="lead">Actions définitives. Rien ne peut être annulé.</p>
       <div class="card danger">
         <div class="row">
-          <div><strong>Supprimer le serveur</strong><small>Efface le serveur, son monde et tous ses fichiers.</small></div>
+          <div><strong>Supprimer le serveur</strong><small>Récupérable 30 jours dans la corbeille.</small></div>
           <div class="val"><button class="btn danger" onclick={() => (confirmDelete = true)}><Trash2 size={14} /> Supprimer…</button></div>
         </div>
       </div>
-      <Confirm bind:open={confirmDelete} title="Supprimer « {server.name} » ?" text="Le monde et tous les fichiers partent. Aucune sauvegarde n'est faite, c'est définitif." onconfirm={() => ondelete(server)} />
+      <Confirm bind:open={confirmDelete} title="Supprimer « {server.name} » ?" text="Il est arrêté et gardé 30 jours dans la corbeille, puis effacé." onconfirm={() => ondelete(server)} />
     {/if}
 </SubPages>
 

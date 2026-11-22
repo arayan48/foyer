@@ -8,7 +8,7 @@ use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
 
@@ -99,6 +99,74 @@ pub async fn agent_call(url: String, fp: String, token: String, method: String, 
   Ok((res.status().as_u16(), res.text().await.map_err(err)?))
 }
 
+/// Un gros fichier dépasse les 30 s des appels ordinaires.
+const TRANSFER: Duration = Duration::from_secs(3600);
+
+async fn check(res: reqwest::Response) -> Result<reqwest::Response, String> {
+  if res.status().is_success() {
+    return Ok(res);
+  }
+  let st = res.status();
+  let text = res.text().await.unwrap_or_default();
+  Err(if text.is_empty() { format!("Erreur {}", st.as_u16()) } else { text })
+}
+
+/// Corps brut : le contenu du fichier ; l'adresse et le jeton arrivent en en-têtes.
+#[tauri::command]
+pub async fn file_upload(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+  let h = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
+  let (url, fp, token, path) = (h("url"), h("fp"), h("token"), h("path"));
+  https(&url)?;
+  let tauri::ipc::InvokeBody::Raw(body) = request.body() else { return Err("Fichier illisible".into()) };
+  let res = client(&fp).put(format!("{url}{path}")).bearer_auth(token).timeout(TRANSFER).body(body.clone()).send().await.map_err(err)?;
+  check(res).await.map(|_| ())
+}
+
+/// Nom de fichier seul, sans chemin : il vient de l'agent.
+fn plain_name(n: &str) -> bool {
+  !n.is_empty() && n != "." && n != ".." && !n.contains(['/', '\\', ':', '\0'])
+}
+
+/// Crée « nom », sinon « nom (1) »… sans jamais écraser.
+fn create_free(dir: &std::path::Path, name: &str) -> Result<(std::fs::File, std::path::PathBuf), String> {
+  let (stem, ext) = name.rsplit_once('.').filter(|(s, _)| !s.is_empty()).map_or((name, String::new()), |(s, e)| (s, format!(".{e}")));
+  for i in 0..1000 {
+    let p = dir.join(if i == 0 { name.to_string() } else { format!("{stem} ({i}){ext}") });
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&p) {
+      Ok(f) => return Ok((f, p)),
+      Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+      Err(e) => return Err(err(e)),
+    }
+  }
+  Err("Trop de fichiers du même nom".into())
+}
+
+/// Télécharge vers le dossier Téléchargements et renvoie le chemin.
+#[tauri::command]
+pub async fn file_download(app: AppHandle, url: String, fp: String, token: String, path: String, name: String) -> Result<String, String> {
+  use std::io::Write;
+  https(&url)?;
+  if !plain_name(&name) {
+    return Err("Nom de fichier invalide".into());
+  }
+  let dir = app.path().download_dir().map_err(err)?;
+  let mut res = check(client(&fp).get(format!("{url}{path}")).bearer_auth(token).timeout(TRANSFER).send().await.map_err(err)?).await?;
+  let (mut f, dest) = create_free(&dir, &name)?;
+  let done = async {
+    while let Some(c) = res.chunk().await.map_err(err)? {
+      f.write_all(&c).map_err(err)?;
+    }
+    f.flush().map_err(err)
+  }
+  .await;
+  drop(f);
+  if let Err(e) = done {
+    let _ = std::fs::remove_file(&dest);
+    return Err(e);
+  }
+  Ok(dest.display().to_string())
+}
+
 fn consoles() -> &'static Mutex<HashMap<String, mpsc::UnboundedSender<String>>> {
   static S: OnceLock<Mutex<HashMap<String, mpsc::UnboundedSender<String>>>> = OnceLock::new();
   S.get_or_init(Default::default)
@@ -167,6 +235,18 @@ mod tests {
   #[test]
   fn fingerprint_format() {
     assert!(super::fingerprint(b"abc").starts_with("BA:78:16:BF"));
+  }
+
+  #[test]
+  fn telechargement_sans_ecraser() {
+    for n in ["", "..", "a/b", "a\\b", "C:x"] {
+      assert!(!super::plain_name(n), "{n}");
+    }
+    let d = std::env::temp_dir().join(format!("foyer-dl-{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    assert_eq!(super::create_free(&d, "a.txt").unwrap().1, d.join("a.txt"));
+    assert_eq!(super::create_free(&d, "a.txt").unwrap().1, d.join("a (1).txt"));
+    std::fs::remove_dir_all(d).unwrap();
   }
 }
 

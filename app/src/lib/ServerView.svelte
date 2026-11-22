@@ -8,6 +8,8 @@
   import ServerFivem from './ServerFivem.svelte'
   import ServerProperties from './ServerProperties.svelte'
   import ServerPlugins from './ServerPlugins.svelte'
+  import ServerFiles from './ServerFiles.svelte'
+  import ServerPlayers from './ServerPlayers.svelte'
   import ServerSoon from './ServerSoon.svelte'
   import { GAMES, SOFTWARE, STATUS, software, type Conn, type Server } from './api'
 
@@ -29,8 +31,8 @@
     { id: 'version', label: 'Version', icon: Package },
     mc ? { id: 'properties', label: 'Propriétés', icon: FileCog } : { id: 'fivem', label: 'FiveM', icon: KeyRound },
     ...(addons ? [{ id: 'plugins', label: addons === 'mods' ? 'Mods' : 'Plugins', icon: Puzzle }] : []),
-    { id: 'players', label: 'Joueurs', icon: Users, soon: true },
-    { id: 'files', label: 'Fichiers', icon: FolderOpen, soon: true },
+    { id: 'players', label: 'Joueurs', icon: Users, soon: !mc },
+    { id: 'files', label: 'Fichiers', icon: FolderOpen },
     { id: 'backups', label: 'Sauvegardes', icon: Archive, soon: true },
   ])
   let tab = $state('console')
@@ -89,10 +91,12 @@
         <ServerProperties {conn} {server} />
       {:else if tab === 'plugins'}
         <ServerPlugins {conn} {server} />
+      {:else if tab === 'players' && mc}
+        <ServerPlayers {conn} {server} />
       {:else if tab === 'players'}
-        <ServerSoon icon={Users} title="Joueurs" text={mc ? 'Voir qui est connecté, expulser, bannir, donner les droits d\'opérateur et gérer la liste blanche.' : 'Voir qui est connecté, expulser et bannir. En attendant, txAdmin le fait déjà.'} />
+        <ServerSoon icon={Users} title="Joueurs" text="Voir qui est connecté, expulser et bannir. En attendant, txAdmin le fait déjà." />
       {:else if tab === 'files'}
-        <ServerSoon icon={FolderOpen} title="Fichiers" text="Parcourir les fichiers du serveur, modifier les configurations, envoyer et télécharger." />
+        <ServerFiles {conn} {server} />
       {:else}
         <ServerSoon icon={Archive} title="Sauvegardes" text="Sauvegardes à la main ou planifiées, restauration en un clic, nombre de copies à garder." />
       {/if}

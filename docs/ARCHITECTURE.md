@@ -108,6 +108,9 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 | `src/lib/NewServer.svelte` | création : choix du jeu, nom, RAM, EULA, port libre auto |
 | `src/lib/ServerView.svelte` | détail : infos, console WebSocket, commandes, suppression confirmée |
 | `src/lib/ServerView.svelte` → onglets | Console, Général, Réseau, Version, Propriétés (Minecraft) ou FiveM (txAdmin, clé Cfx.re, server.cfg), Joueurs, Fichiers, Sauvegardes. Ce qui n'a pas encore d'API est affiché désactivé avec « Bientôt » |
+| `src/lib/ServerFiles.svelte` | fichiers : parcourir, éditer (texte, 1 Mo max), envoyer (500 Mo max), télécharger dans Téléchargements |
+| `src/lib/ServerPlayers.svelte` | joueurs Minecraft : connectés, opérateurs, liste blanche, bannis |
+| `src/lib/Trash.svelte`, `src/lib/Journal.svelte` | corbeille et journal des actions |
 | `src/lib/SaveBar.svelte` | barre « Enregistrer / Annuler » qui apparaît quand une page est modifiée |
 | `src/lib/Update.svelte` | bandeau de mise à jour (plugin updater) |
 | `src/lib/GameMark.svelte` | pastille de jeu : bloc d'herbe dessiné pour Minecraft, logo FiveM (simple-icons, CC0) |

@@ -9,7 +9,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P1** Choix des cœurs (affinité CPU) par serveur
 - [ ] **P2** Priorité processus (basse / normale / haute)
 - [ ] **P2** Graphiques CPU / RAM / joueurs sur 1 h, 24 h, 7 j (historique stocké par l'agent)
-- [ ] **P2** Taille du dossier de chaque serveur (agent fait), alerte disque presque plein
+- [ ] **P2** Taille du dossier de chaque serveur (fait), alerte disque presque plein
 - [ ] **P3** Alerte si un serveur dépasse sa limite longtemps
 
 ## 2. Paramètres et options
@@ -44,10 +44,10 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P3** Paquets Linux `.deb` / `.AppImage` dans chaque release
 
 ## 5. Fichiers et sauvegardes
-- [ ] **P1** Gestionnaire de fichiers : parcourir, éditer, envoyer, télécharger, supprimer (agent fait, reste l'interface)
+- [x] **P1** Gestionnaire de fichiers : parcourir, éditer, envoyer, télécharger, supprimer
 - [ ] **P1** Sauvegardes : manuelle + planifiée, restauration en un clic, rétention (garder les N dernières)
 - [ ] **P2** Sauvegarde avant chaque mise à jour du jeu
-- [ ] **P2** Corbeille : la suppression d'un serveur passe par une archive au lieu d'effacer direct (agent fait, 30 jours ; reste l'interface)
+- [x] **P2** Corbeille : la suppression d'un serveur passe par une archive au lieu d'effacer direct (30 jours)
 - [ ] **P3** Envoi des sauvegardes sur le HDD 300 Go, un NAS ou le cloud
 
 ## 6. Jeux
@@ -58,7 +58,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P3** Catalogue communautaire de recettes
 
 ## 7. Réseau et accès
-- [ ] **P1** Liste des joueurs connectés, kick / ban / op depuis l'appli (agent fait pour Minecraft, reste l'interface)
+- [x] **P1** Liste des joueurs connectés, kick / ban / op depuis l'appli (Minecraft)
 - [ ] **P2** Accès depuis l'extérieur pour les joueurs : intégration playit.gg (tunnel sans ouvrir la box)
 - [ ] **P2** Vérification des ports (« ton serveur est-il joignable ? »)
 - [ ] **P2** Plusieurs machines dans le même client (liste de serveurs Foyer)
@@ -74,7 +74,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P2** `SECURITY.md` (signaler une faille en privé) + `cargo audit` / `npm audit` dans GitHub Actions
 - [ ] **P3** Doc : accès à distance via VPN (Tailscale, WireGuard) plutôt que port ouvert sur la box
 - [ ] **P2** Comptes utilisateurs et rôles (admin, modérateur, lecture seule) pour les amis
-- [ ] **P2** Journal des actions (agent fait : adresse IP, action, date ; reste l'interface)
+- [x] **P2** Journal des actions (adresse IP, action, date)
 - [ ] **P2** Faire tourner les jeux sous un compte Windows dédié, pas SYSTEM
 - [ ] **P3** Sauvegarde de la clé de signature des mises à jour (aujourd'hui seulement sur claude-box)
 
