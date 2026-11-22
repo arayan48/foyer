@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowLeft, Check, Search } from 'lucide-svelte'
-  import { GAMES, call, cmpVersion, type Catalog, type Conn, type Game, type Server } from './api'
+  import { GAMES, SOFTWARE, call, type Catalog, type Conn, type Game, type Server, type Software } from './api'
 
   // affiches officielles, © leurs éditeurs (mêmes fichiers que le site)
   import minecraft from '../assets/games/minecraft.webp'
@@ -33,8 +33,13 @@
   let error = $state('')
 
   // Minecraft
-  let version = $state('') // vide = dernière stable
-  let java = $state(0) // 0 = conseillé
+  let sw = $state<Software>('vanilla')
+  let version = $state('')
+  let seed = $state('')
+  let levelType = $state('default')
+  let hardcore = $state(false)
+  let onlineMode = $state(true)
+  const LEVELS = { default: 'Normal', flat: 'Plat', largeBiomes: 'Grands biomes', amplified: 'Amplifié' }
   // FiveM
   let channel = $state('recommended')
   let txadmin = $state(true)
@@ -47,9 +52,25 @@
   let catalogError = $state('')
   call<Catalog>(conn, '/api/catalog').then((c) => (catalog = c)).catch((e) => (catalogError = (e as Error).message))
 
-  // de la plus récente à la plus ancienne (l'agent les renvoie dans le désordre)
-  let mcVersions = $derived([...(catalog?.minecraft ?? [])].sort((a, b) => cmpVersion(b.id, a.id)))
-  let recommendedJava = $derived(mcVersions.find((v) => v.id === (version || mcVersions[0]?.id))?.java ?? 25)
+  // versions du logiciel choisi
+  let mcVersions = $state<Catalog['minecraft'] | null>(null)
+  let mcError = $state('')
+  async function loadVersions() {
+    const want = sw
+    const keep = version
+    mcVersions = null
+    version = ''
+    mcError = ''
+    try {
+      const l = await call<Catalog['minecraft']>(conn, `/api/catalog/${want}`)
+      if (want !== sw) return // un autre choix entre-temps
+      mcVersions = l
+      version = (l.find((v) => v.id === keep) ?? l[0])?.id ?? ''
+    } catch (e) {
+      if (want === sw) mcError = (e as Error).message
+    }
+  }
+  loadVersions()
   // nom facultatif : minecraft1, fivem2… premier numéro libre
   let autoName = $derived.by(() => {
     const taken = new Set(servers.map((s) => s.name.toLowerCase()))
@@ -71,13 +92,13 @@
   let steps = $derived(
     game === 'fivem' && !txadmin
       ? ['Jeu', 'Version', 'Framework', 'Finaliser']
-      : ['Jeu', 'Version', 'Finaliser'],
+      : game === 'minecraft' ? ['Jeu', 'Version', 'Monde', 'Finaliser'] : ['Jeu', 'Version', 'Finaliser'],
   )
   let step = $state(0)
   let current = $derived(steps[Math.min(step, steps.length - 1)])
   let last = $derived(step >= steps.length - 1)
   let canNext = $derived(
-    current === 'Jeu' ? shown.some(([k]) => k === game) : current !== 'Framework' || keyOk,
+    current === 'Jeu' ? shown.some(([k]) => k === game) : current === 'Version' ? game !== 'minecraft' || !!version : current !== 'Framework' || keyOk,
   )
   const fwLabel: Record<string, string> = { vanilla: 'Vanilla', esx: 'ESX Legacy', qbcore: 'QBCore' }
 
@@ -100,7 +121,7 @@
         method: 'POST',
         body: JSON.stringify(
           game === 'minecraft'
-            ? { name, game, port, ram_mb: ram * 1024, eula, version: version || undefined, java: java || undefined }
+            ? { name, game, port, ram_mb: ram * 1024, eula, software: sw, version, seed: seed.trim(), level_type: levelType, hardcore, online_mode: onlineMode }
             : {
                 name, game, port, ram_mb: ram * 1024, version: channel, txadmin,
                 ...(txadmin ? {} : { framework, license_key: licenseKey.trim(), max_players: maxPlayers, db_url: framework === 'vanilla' ? undefined : dbUrl }),
@@ -160,24 +181,28 @@
       <div class="empty"><Search size={20} /><p>Aucun jeu trouvé.</p></div>
     {/if}
   {:else if current === 'Version'}
-    {#if catalogError}<p class="note">Liste des versions indisponible ({catalogError}). Les choix par défaut seront utilisés.</p>{/if}
+    {#if catalogError && game === 'fivem'}<p class="note">Liste des versions indisponible ({catalogError}). Les choix par défaut seront utilisés.</p>{/if}
     {#if game === 'minecraft'}
+      <fieldset>
+        <legend>Logiciel</legend>
+        <div class="games">
+          {#each Object.entries(SOFTWARE) as [k, s] (k)}
+            <label class="game" class:on={sw === k}>
+              <input type="radio" name="software" value={k} bind:group={sw} onchange={loadVersions} />
+              <span><strong>{s.label}</strong><small>{s.hint}</small></span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
       <label class="field">
         <span>Version de Minecraft</span>
-        <select class="input" bind:value={version} disabled={!catalog}>
-          <option value="">La plus récente{mcVersions[0] ? ` (${mcVersions[0].id})` : ''}</option>
-          {#each mcVersions as v}<option value={v.id}>{v.id}</option>{/each}
+        <select class="input" bind:value={version} disabled={!mcVersions}>
+          {#if !mcVersions}<option value="">{mcError ? 'Indisponible' : 'Chargement…'}</option>{/if}
+          {#each mcVersions ?? [] as v (v.id)}<option value={v.id}>{v.id}</option>{/each}
         </select>
-        <small>Les joueurs doivent avoir la même version. Plugins et mods : onglet Version du serveur, après l'installation.</small>
+        {#if SOFTWARE[sw].addons}<small>Vérifie d'abord la version demandée par tes {SOFTWARE[sw].addons}.</small>{/if}
       </label>
-      <label class="field">
-        <span>Java</span>
-        <select class="input" bind:value={java}>
-          <option value={0}>Automatique (Java {recommendedJava})</option>
-          {#each (catalog?.java ?? [8, 11, 17, 21, 25]).filter((j) => j !== recommendedJava) as j}<option value={j}>Java {j}</option>{/each}
-        </select>
-        {#if java && java < recommendedJava}<small class="warn">Trop ancien pour cette version : le serveur risque de ne pas démarrer.</small>{:else}<small>Téléchargé une fois, partagé entre serveurs.</small>{/if}
-      </label>
+      {#if mcError}<p class="err-text" role="alert">Liste des versions indisponible : {mcError} <button type="button" class="btn" onclick={loadVersions}>Réessayer</button></p>{/if}
     {:else}
       <label class="field">
         <span>Build FiveM</span>
@@ -204,6 +229,26 @@
         <p class="note">Au premier démarrage, la console affiche un code PIN. Ouvre txAdmin dans le navigateur, puis choisis une recette (ESX, QBCore…) et colle ta clé de licence.</p>
       {/if}
     {/if}
+  {:else if current === 'Monde'}
+    <p class="note">À choisir maintenant : difficile à changer une fois le monde créé.</p>
+    <label class="field">
+      <span>Type de monde</span>
+      <select class="input" bind:value={levelType}>
+        {#each Object.entries(LEVELS) as [k, l] (k)}<option value={k}>{l}</option>{/each}
+      </select>
+    </label>
+    <label class="field">
+      <span>Graine <em>facultatif</em></span>
+      <input class="input" bind:value={seed} maxlength="100" placeholder="Au hasard" spellcheck="false" autocomplete="off" />
+    </label>
+    <label class="check">
+      <input type="checkbox" bind:checked={hardcore} />
+      <span>Hardcore : une seule vie</span>
+    </label>
+    <label class="check">
+      <input type="checkbox" bind:checked={onlineMode} />
+      <span>Comptes Minecraft officiels seulement{#if !onlineMode}<small class="warn">N'importe qui pourra prendre le pseudo d'un autre. Changer plus tard vide les inventaires.</small>{/if}</span>
+    </label>
   {:else if current === 'Framework'}
     <fieldset>
       <legend>Framework</legend>
@@ -241,11 +286,14 @@
     <label class="field">
       <span>Mémoire réservée : {ram} Go</span>
       <input type="range" min="1" max="12" bind:value={ram} />
+      {#if game === 'minecraft' && SOFTWARE[sw].addons === 'mods' && ram < 4}<small class="warn">Peu pour des mods : 4 Go ou plus.</small>{/if}
     </label>
     <dl class="recap">
       <dt>Jeu</dt><dd>{GAMES[game].label}</dd>
       {#if game === 'minecraft'}
-        <dt>Version</dt><dd>{version || mcVersions[0]?.id || 'La plus récente'}, Java {java || recommendedJava}</dd>
+        <dt>Version</dt><dd>{SOFTWARE[sw].label} {version}</dd>
+        <dt>Monde</dt><dd>{LEVELS[levelType as keyof typeof LEVELS]}{seed.trim() ? `, graine ${seed.trim()}` : ''}{hardcore ? ', hardcore' : ''}</dd>
+        {#if !onlineMode}<dt>Comptes</dt><dd>Non officiels acceptés</dd>{/if}
       {:else}
         <dt>Build</dt><dd>{channel}</dd>
         <dt>Mode</dt><dd>{txadmin ? 'txAdmin' : fwLabel[framework]}</dd>
@@ -329,6 +377,7 @@
   .field small.warn { color: var(--warn, oklch(0.75 0.15 70)); }
   input[type='range'] { accent-color: var(--primary); }
   .check { display: flex; gap: 10px; align-items: flex-start; }
+  .check small { display: block; font-size: 0.85rem; color: var(--warn, oklch(0.75 0.15 70)); }
   .check input { accent-color: var(--primary); margin-top: 4px; }
   a { color: var(--primary); }
   .note { color: var(--muted); max-width: 65ch; }

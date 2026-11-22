@@ -435,6 +435,9 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     if n.setup.java.is_some_and(|j| !games::JAVAS.contains(&j)) {
         return bad("Version de Java non proposée");
     }
+    if let Err(e) = n.setup.properties(port) {
+        return bad(&e.to_string());
+    }
     let fivem = n.game == Game::Fivem;
     let txadmin = !fivem || n.setup.txadmin;
     let framework = (fivem && !txadmin).then(|| n.setup.framework.clone().unwrap_or_else(|| "vanilla".into()));
@@ -453,13 +456,18 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     tokio::spawn(async move {
         let dir = app2.data.join("servers").join(&s2.id);
         let log = logger(&app2, &s2.id);
-        let setup = games::Setup { java: Some(s2.java), txadmin: s2.txadmin, framework: s2.framework.clone(), ..n.setup };
+        let setup = games::Setup { txadmin: s2.txadmin, framework: s2.framework.clone(), ..n.setup };
+        let auto_java = s2.game == Game::Minecraft && setup.java.is_none();
         let r = games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await;
         if let Ok(v) = &r {
             firewall(&s2, true).await;
             let mut servers = app2.servers.lock().await;
             if let Some(x) = servers.iter_mut().find(|x| x.id == s2.id) {
                 x.version = Some(v.clone());
+                // sans version demandée, le bon Java n'est connu qu'une fois le logiciel installé
+                if let (true, Some(mc)) = (auto_java, software::parse(Some(v)).1) {
+                    x.java = games::java_for(&mc);
+                }
             }
             save(&app2, &servers).await;
         }

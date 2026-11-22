@@ -64,7 +64,7 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 |---|---|---|
 | GET | `/api/system` | machine : nom, OS, CPU %, RAM, disque |
 | GET | `/api/servers` | serveurs + statut, cpu, mem, disk (octets, calculé toutes les 5 min, `null` avant), admin_port |
-| POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` |
+| POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` ; Minecraft : `software?`, `version?`, `seed?`, `level_type?`, `hardcore?`, `online_mode?` |
 | PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
 | GET | `/api/catalog/{logiciel}` | versions de Minecraft d'un logiciel, la plus récente d'abord |
 | GET / POST | `/api/servers/{id}/backups` | liste `{backups, running, error}` / lance une sauvegarde (à chaud pour Minecraft) |
@@ -95,7 +95,7 @@ Commande stdin (`stop` pour Minecraft) puis attente 30 s, sinon arbre tué (`tas
 ### Jeux
 | Jeu | Source | Lancement | Ports |
 |---|---|---|---|
-| Minecraft | Vanilla (Mojang) à la création, autre logiciel ensuite depuis l'onglet Version ; Java conseillé (Adoptium) | `java -Xms -Xmx -jar server.jar nogui`, ou les arguments de `foyer-launch.txt` (Forge, NeoForge, vieux Vanilla) | TCP port (défaut 25565) |
+| Minecraft | logiciel choisi à la création (Fabric : avec Fabric API), changeable ensuite depuis l'onglet Version ; Java conseillé (Adoptium) | `java -Xms -Xmx -jar server.jar nogui`, ou les arguments de `foyer-launch.txt` (Forge, NeoForge, vieux Vanilla) | TCP port (défaut 25565) |
 | FiveM | build « recommended » via `changelogs-live.fivem.net` | `FXServer.exe +set txAdminPort <port+10000>` | TCP+UDP port (30120), TCP txAdmin (40120) |
 
 Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
@@ -108,7 +108,7 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 | `src/lib/api.ts` | types, appels à l'agent (via Rust dans l'appli, `fetch` dans un navigateur), console, textes des jeux et statuts, formatage |
 | `src/lib/Connect.svelte` | connexion (adresse + jeton) ; vérification de l'empreinte ; auto-connexion à l'agent local via la commande Tauri `local_agent` |
 | `src/lib/ServerList.svelte` | liste des serveurs, état, CPU/RAM, actions |
-| `src/lib/NewServer.svelte` | création : choix du jeu, nom, RAM, EULA, port libre auto |
+| `src/lib/NewServer.svelte` | création : choix du jeu, logiciel et version, monde, nom, RAM, EULA, port libre auto |
 | `src/lib/ServerView.svelte` | détail : infos, console WebSocket, commandes, suppression confirmée |
 | `src/lib/ServerView.svelte` → onglets | Console, Général, Réseau, Version, Propriétés (Minecraft) ou FiveM (txAdmin, clé Cfx.re, server.cfg), Joueurs, Fichiers, Sauvegardes. Ce qui n'a pas encore d'API est affiché désactivé avec « Bientôt » |
 | `src/lib/ServerFiles.svelte` | fichiers : parcourir, éditer (texte, 1 Mo max), envoyer (500 Mo max), télécharger dans Téléchargements |
