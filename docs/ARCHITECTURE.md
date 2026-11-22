@@ -34,6 +34,8 @@ Deux installeurs construits à partir de la même appli :
 |---|---|
 | `main.rs` | serveur HTTPS (axum 0.8 + axum-server/rustls, certificat auto-signé via rcgen), auth, état, cycle de vie des processus, stats, pare-feu, persistance |
 | `games.rs` | recettes de jeux : installation (téléchargements, extraction), commande de lancement, ports, commande d'arrêt, marqueur « prêt » |
+| `files.rs` | fichiers d'un serveur, chemins bloqués dans `servers/<id>` (liens symboliques compris) |
+| `trash.rs` | corbeille des serveurs supprimés |
 | `build.rs` | icône Windows de l'exe |
 
 ### Données (`FOYER_DATA`, défaut `C:\Foyer` ou `/var/lib/foyer`)
@@ -44,6 +46,8 @@ fingerprint           empreinte SHA-256 du certificat (à comparer à la connexi
 servers.json          liste des serveurs (id, name, game, port, ram_mb, auto_start, auto_restart)
 runtime/java25/       Java Temurin 25 partagé (Minecraft)
 servers/<id>/         fichiers d'un serveur (server.jar, monde, artifacts FiveM…)
+trash/<id>/           serveur supprimé : server.json + files/
+tmp/                  envois de fichiers en cours, vidé au démarrage
 ```
 
 ### API
@@ -56,7 +60,12 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` |
 | PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
 | GET / PUT | `/api/servers/{id}/properties` | Minecraft : lit / écrit les clés de `server.properties` (`{clé: valeur}`) ; PUT ne touche qu'aux clés envoyées, refuse le port (passer par PATCH) |
-| DELETE | `/api/servers/{id}` | arrête, retire le pare-feu, **efface le dossier** |
+| DELETE | `/api/servers/{id}` | arrête, retire le pare-feu, met le dossier à la corbeille ; 409 pendant l'installation |
+| GET | `/api/servers/{id}/files?path=` | liste un dossier `[{name, dir, size, modified}]` ; chemins relatifs avec `/` |
+| POST / PATCH / DELETE | `/api/servers/{id}/files?path=` | crée un dossier / renomme ou déplace `{to}` sans écraser / efface (définitif) |
+| GET / PUT | `/api/servers/{id}/files/content?path=` | télécharge / écrit un fichier (corps brut, sans limite de taille, remplacé une fois tout reçu) |
+| GET | `/api/trash` | serveurs supprimés + `deleted_at` |
+| POST / DELETE | `/api/trash/{id}` | restaure (409 si le port est pris) / efface définitivement ; effacement auto après 30 jours |
 | POST | `/api/servers/{id}/start\|stop\|restart` | cycle de vie |
 | GET (WS) | `/api/servers/{id}/console` | 1000 dernières lignes puis direct ; texte envoyé = commande stdin |
 | POST | `/api/shutdown` | arrêt propre de tous les jeux puis de l'agent (avant mise à jour) |

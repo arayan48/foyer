@@ -44,10 +44,10 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P3** Paquets Linux `.deb` / `.AppImage` dans chaque release
 
 ## 5. Fichiers et sauvegardes
-- [ ] **P1** Gestionnaire de fichiers : parcourir, éditer, envoyer, télécharger, supprimer
+- [ ] **P1** Gestionnaire de fichiers : parcourir, éditer, envoyer, télécharger, supprimer (agent fait, reste l'interface)
 - [ ] **P1** Sauvegardes : manuelle + planifiée, restauration en un clic, rétention (garder les N dernières)
 - [ ] **P2** Sauvegarde avant chaque mise à jour du jeu
-- [ ] **P2** Corbeille : la suppression d'un serveur passe par une archive au lieu d'effacer direct
+- [ ] **P2** Corbeille : la suppression d'un serveur passe par une archive au lieu d'effacer direct (agent fait, 30 jours ; reste l'interface)
 - [ ] **P3** Envoi des sauvegardes sur le HDD 300 Go, un NAS ou le cloud
 
 ## 6. Jeux
@@ -70,7 +70,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [x] **P1** Jeton de la console hors de l'URL (sous-protocole WebSocket ou ticket court)
 - [ ] **P1** Jeton par appareil, révocable un par un
 - [ ] **P2** Blocage temporaire après plusieurs mauvais jetons
-- [ ] **P2** Corbeille : serveur supprimé archivé quelques jours avant effacement
+- [x] **P2** Corbeille : serveur supprimé archivé quelques jours avant effacement
 - [ ] **P2** `SECURITY.md` (signaler une faille en privé) + `cargo audit` / `npm audit` dans GitHub Actions
 - [ ] **P3** Doc : accès à distance via VPN (Tailscale, WireGuard) plutôt que port ouvert sur la box
 - [ ] **P2** Comptes utilisateurs et rôles (admin, modérateur, lecture seule) pour les amis

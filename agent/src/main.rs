@@ -1,7 +1,9 @@
 //! Foyer agent : installe, lance et surveille des serveurs de jeu.
 //! API HTTP + WebSocket protégée par un jeton, à garder sur le réseau local.
+mod files;
 mod games;
 mod limits;
+mod trash;
 
 use anyhow::Result;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -153,7 +155,9 @@ async fn main() -> Result<()> {
     let live = servers.iter().map(|s| (s.id.clone(), Live::new(Status::Stopped))).collect();
     let app = Arc::new(App { data: data.clone(), token, servers: Mutex::new(servers), live: Mutex::new(live), host: Default::default() });
 
+    let _ = tokio::fs::remove_dir_all(data.join("tmp")).await; // envois interrompus
     tokio::spawn(stats_loop(app.clone()));
+    tokio::spawn(trash::purge_loop(app.clone()));
     let auto: Vec<String> = app.servers.lock().await.iter().filter(|s| s.auto_start).map(|s| s.id.clone()).collect();
     for id in auto {
         if let Err(e) = start(&app, &id).await {
@@ -173,6 +177,10 @@ async fn main() -> Result<()> {
         .route("/api/servers/{id}/plugins", get(plugins).post(plugin_add))
         .route("/api/servers/{id}/plugins/search", get(plugin_search))
         .route("/api/servers/{id}/plugins/{file}", axum::routing::delete(plugin_del).patch(plugin_toggle))
+        .route("/api/servers/{id}/files", get(files::list).post(files::mkdir).patch(files::rename).delete(files::delete))
+        .route("/api/servers/{id}/files/content", get(files::read).put(files::write))
+        .route("/api/trash", get(trash::list))
+        .route("/api/trash/{id}", post(trash::restore).delete(trash::purge))
         .layer(middleware::from_fn_with_state(app.clone(), auth))
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(app);
@@ -427,20 +435,26 @@ async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch
     Ok(Json(s))
 }
 
-async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> StatusCode {
+/// Arrête le serveur et le met à la corbeille.
+async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> Result<StatusCode, Err> {
+    if app.live.lock().await.get(&id).is_some_and(|l| l.status == Status::Installing) {
+        return Err((StatusCode::CONFLICT, "Attends la fin de l'installation".into()));
+    }
     stop(&app, &id).await;
     let mut servers = app.servers.lock().await;
-    let Some(i) = servers.iter().position(|s| s.id == id) else { return StatusCode::NOT_FOUND };
+    let Some(i) = servers.iter().position(|s| s.id == id) else { return Err((StatusCode::NOT_FOUND, "serveur inconnu".into())) };
+    if app.live.lock().await.get(&id).is_some_and(|l| l.pid.is_some()) {
+        return Err((StatusCode::CONFLICT, "Le serveur ne s'arrête pas".into()));
+    }
+    trash::put(&app, &servers[i]).await?;
     let s = servers.remove(i);
     save(&app, &servers).await;
     drop(servers);
     app.live.lock().await.remove(&id);
     firewall(&s, false).await;
-    // shortcut: suppression définitive du dossier, pas de corbeille ; ajouter une sauvegarde avant si besoin
-    let _ = tokio::fs::remove_dir_all(app.data.join("servers").join(&id)).await;
     #[cfg(target_os = "linux")]
     limits::linux::remove(&id);
-    StatusCode::NO_CONTENT
+    Ok(StatusCode::NO_CONTENT)
 }
 
 type Err = (StatusCode, String);
