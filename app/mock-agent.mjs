@@ -2,7 +2,7 @@
 import http from 'node:http'
 
 const servers = [
-  { id: 'a1', name: 'Survie entre potes', game: 'minecraft', port: 25565, ram_mb: 4096, status: 'running', cpu: 23, mem: 2.6e9, admin_port: null, disk: 1.8e9, players: ['Bob', 'Eve_1'], version: 'Paper 1.21.10', auto_start: false, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
+  { id: 'a1', name: 'Survie entre potes', game: 'minecraft', port: 25565, ram_mb: 4096, status: 'running', cpu: 23, mem: 2.6e9, admin_port: null, disk: 1.8e9, players: ['Bob', 'Eve_1'], max_players: 10, uptime_s: 8040, version: 'Paper 1.21.10', auto_start: false, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
   { id: 'b2', name: 'RP Los Santos', game: 'fivem', port: 30120, ram_mb: 4096, status: 'stopped', cpu: 0, mem: 0, admin_port: 40120, version: 'Build 17000', auto_start: true, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
   { id: 'c3', name: 'Créatif', game: 'minecraft', port: 25566, ram_mb: 2048, status: 'installing', cpu: 0, mem: 0, admin_port: null, auto_start: false, auto_restart: true, cpu_limit: 0, cores: [], ram_cap: false },
 ]

@@ -103,6 +103,10 @@ struct Live {
     crashes: VecDeque<Instant>,
     /// joueurs présents (Minecraft)
     players: std::collections::BTreeSet<String>,
+    /// places, lues au démarrage (Minecraft)
+    max_players: Option<u32>,
+    /// prêt à jouer depuis
+    since: Option<Instant>,
     /// taille du dossier en octets, None avant le premier calcul
     disk: Option<u64>,
     /// sauvegarde ou restauration en cours, serveur allumé ou non
@@ -112,7 +116,7 @@ struct Live {
 
 impl Live {
     fn new(status: Status) -> Self {
-        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0, crashes: VecDeque::new(), players: Default::default(), disk: None, backing: false, backup_error: None }
+        Live { status, stdin: None, pid: None, log: VecDeque::new(), tx: broadcast::channel(256).0, cpu: 0.0, mem: 0, crashes: VecDeque::new(), players: Default::default(), max_players: None, since: None, disk: None, backing: false, backup_error: None }
     }
     fn push(&mut self, line: String) {
         if self.log.len() >= LOG_LINES {
@@ -324,6 +328,11 @@ struct ServerView {
     /// joueurs présents, Minecraft seulement
     #[serde(skip_serializing_if = "Option::is_none")]
     players: Option<std::collections::BTreeSet<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_players: Option<u32>,
+    /// secondes depuis que le serveur est prêt
+    #[serde(skip_serializing_if = "Option::is_none")]
+    uptime_s: Option<u64>,
     admin_port: Option<u16>,
 }
 
@@ -338,6 +347,8 @@ async fn list(State(app): S) -> Json<Vec<ServerView>> {
             mem: l.map(|l| l.mem).unwrap_or(0),
             disk: l.and_then(|l| l.disk),
             players: l.filter(|_| s.game == Game::Minecraft).map(|l| l.players.clone()),
+            max_players: l.and_then(|l| l.max_players),
+            uptime_s: l.and_then(|l| l.since).map(|t| t.elapsed().as_secs()),
             admin_port: (s.game == Game::Fivem && s.txadmin).then(|| games::txadmin_port(s.port)),
             server: s,
         }
@@ -758,6 +769,10 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     #[cfg(unix)]
     cmd.process_group(0);
+    let max_players = match s.game {
+        Game::Minecraft => games::read_props(&dir.join("server.properties")).await.ok().map(|t| games::max_players(&t)),
+        _ => None,
+    };
     let lim = limits::Limits { cpu_percent: s.cpu_limit, cores: s.cores.clone(), mem_mb: s.ram_cap.then(|| s.game.mem_cap(s.ram_mb)) };
     let mut warn = None;
     #[cfg(target_os = "linux")]
@@ -792,6 +807,7 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
         l.status = Status::Starting;
         l.stdin = child.stdin.take();
         l.pid = pid;
+        l.max_players = max_players;
         l.push(format!("[foyer] Démarrage : {}", exe.display()));
         if let Some(w) = &warn {
             l.push(format!("[foyer] Limites non appliquées : {w}"));
@@ -827,6 +843,7 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
                 if let Some(l) = live.get_mut(&id) {
                     if l.status == Status::Starting && line.contains(marker) {
                         l.status = Status::Running;
+                        l.since = Some(Instant::now());
                         if mc {
                             let (app, id) = (app.clone(), id.clone());
                             tokio::spawn(async move { players::apply_rules(&app, &id).await });
@@ -856,6 +873,8 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
             l.cpu = 0.0;
             l.mem = 0;
             l.players.clear();
+            l.max_players = None;
+            l.since = None;
             l.push(format!("[foyer] Processus terminé (code {code:?})"));
             if !(crashed && auto) {
                 false

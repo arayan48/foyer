@@ -664,6 +664,11 @@ pub async fn read_props(p: &Path) -> std::io::Result<String> {
     }
 }
 
+/// Places d'un serveur Minecraft, 20 par défaut comme le jeu.
+pub fn max_players(text: &str) -> u32 {
+    parse_props(text).get("max-players").and_then(|v| v.trim().parse().ok()).unwrap_or(20)
+}
+
 /// Lit les clés d'un `server.properties` (commentaires et lignes vides ignorés).
 pub fn parse_props(text: &str) -> std::collections::BTreeMap<String, String> {
     text.lines()
@@ -675,6 +680,13 @@ pub fn parse_props(text: &str) -> std::collections::BTreeMap<String, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn places_minecraft() {
+        assert_eq!(super::max_players("motd=a\r\nmax-players=10\r\n"), 10);
+        assert_eq!(super::max_players("max-players=\n"), 20);
+        assert_eq!(super::max_players(""), 20);
+    }
+
     #[test]
     fn parse_props_ignore_commentaires() {
         let m = super::parse_props("#c\nmotd=a=b\n\ndifficulty=hard\n");

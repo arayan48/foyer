@@ -61,7 +61,7 @@
   const ramMax = $derived(server.ram_mb * 1024 ** 2)
   const memPct = $derived(idle ? 0 : Math.min(100, (server.mem / ramMax) * 100))
   const cpuPct = $derived(idle ? 0 : Math.min(100, server.cpu))
-  const uptime = (s: number) => (s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : `${Math.floor(s / 86400)} j ${Math.floor((s % 86400) / 3600)} h`)
+  const uptime = (s: number) => (s < 60 ? `${Math.floor(s)} s` : s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : `${Math.floor(s / 86400)} j ${Math.floor((s % 86400) / 3600)} h`)
 
   let filter = $state('')
   const shown = $derived(filter ? lines.filter((l) => l.toLowerCase().includes(filter.toLowerCase())) : lines)
@@ -93,18 +93,14 @@
   <div class="tile">
     <span>Joueurs</span>
     {#if server.players}
-      <strong>{idle ? '–' : server.players.length} <small>/ {server.max_players ?? '?'}</small></strong>
+      <strong>{idle ? '–' : server.players.length} {#if server.max_players != null}<small>/ {server.max_players}</small>{/if}</strong>
     {:else}
       <strong class="later">Bientôt</strong>
     {/if}
   </div>
   <div class="tile">
     <span>En ligne depuis</span>
-    {#if server.uptime_s != null}
-      <strong>{idle ? '–' : uptime(server.uptime_s)}</strong>
-    {:else}
-      <strong class="later">Bientôt</strong>
-    {/if}
+    <strong>{idle || server.uptime_s == null ? '–' : uptime(server.uptime_s)}</strong>
   </div>
   <div class="tile">
     <span>Version</span>

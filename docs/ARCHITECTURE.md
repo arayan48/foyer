@@ -63,7 +63,7 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | Méthode | Route | Effet |
 |---|---|---|
 | GET | `/api/system` | machine : nom, OS, CPU %, RAM, disque |
-| GET | `/api/servers` | serveurs + statut, cpu, mem, disk (octets, calculé toutes les 5 min, `null` avant), admin_port |
+| GET | `/api/servers` | serveurs + statut, cpu, mem, disk (octets, calculé toutes les 5 min, `null` avant), admin_port, `uptime_s` (prêt depuis) ; Minecraft : `players`, `max_players` |
 | POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` ; Minecraft : `software?`, `version?`, `seed?`, `level_type?`, `hardcore?`, `online_mode?` |
 | PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
 | GET | `/api/catalog/{logiciel}` | versions de Minecraft d'un logiciel, la plus récente d'abord |

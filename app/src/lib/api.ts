@@ -24,8 +24,8 @@ export interface Server {
   disk?: number | null
   /** joueurs présents (Minecraft) */
   players?: string[]
-  // à venir côté agent : la console les affiche dès qu'ils existent
   max_players?: number
+  /** secondes depuis que le serveur est prêt */
   uptime_s?: number
 }
 
