@@ -21,7 +21,7 @@
     motd: 'A Minecraft Server', 'level-seed': '', 'level-type': 'default', 'spawn-protection': '16',
     gamemode: 'survival', 'force-gamemode': 'false', difficulty: 'easy', hardcore: 'false', pvp: 'true', 'enable-command-block': 'false', 'allow-flight': 'false',
     'max-players': '20', 'white-list': 'false', 'online-mode': 'true', 'player-idle-timeout': '0',
-    'view-distance': '10', 'simulation-distance': '10',
+    'view-distance': '10', 'simulation-distance': '10', 'entity-broadcast-range-percentage': '100',
   }
   type Props = typeof DEF
   type Key = keyof Props
@@ -88,21 +88,25 @@
     if (server.status !== 'running') untrack(() => (restart = false))
   })
 
-  const NUM: [Key, number, number, string][] = [
-    ['view-distance', 3, 32, "Distance d'affichage"],
-    ['simulation-distance', 3, 32, 'Distance de simulation'],
-    ['max-players', 1, 1000, 'Joueurs maximum'],
-    ['spawn-protection', 0, 1000, 'Protection du point de départ'],
-    ['player-idle-timeout', 0, 1440, 'Inactivité'],
+  // réglages rapides : affichage, simulation, entités
+  const PRESETS: [string, string, string, string][] = [
+    ['Léger', '6', '4', '70'],
+    ['Équilibré', '10', '8', '100'],
+    ['Lointain', '16', '10', '100'],
   ]
+  const simOn = since('1.18'), entOn = since('1.16')
+  const isPreset = ([, v, sim, ent]: (typeof PRESETS)[number]) =>
+    f['view-distance'] === v && (!simOn || f['simulation-distance'] === sim) && (!entOn || f['entity-broadcast-range-percentage'] === ent)
+  function preset([, v, sim, ent]: (typeof PRESETS)[number]) {
+    f['view-distance'] = v
+    if (simOn) f['simulation-distance'] = sim
+    if (entOn) f['entity-broadcast-range-percentage'] = ent
+  }
+  const view = $derived(Number(f['view-distance']))
+  const chunks = (n: number) => `${n} chunks`
 
   function save() {
     error = ''
-    for (const [k, min, max, label] of NUM) {
-      if (f[k] === saved[k]) continue
-      const x = Number(f[k])
-      if (!f[k].trim() || !Number.isInteger(x) || x < min || x > max) return void (error = `${label} : entre ${min} et ${max}`)
-    }
     if (hasWorld && f['online-mode'] !== saved['online-mode']) ask = true
     else send()
   }
@@ -140,8 +144,17 @@
   }
 </script>
 
-{#snippet num(k: Key, label: string, hint = '')}
-  <label class="row"><div><strong>{label}</strong>{#if hint}<small>{hint}</small>{/if}</div><input class="input" inputmode="numeric" bind:value={f[k]} /></label>
+{#snippet slider(k: Key, label: string, min: number, max: number, unit: (n: number) => string, hint = '', step = 1)}
+  {@const n = Number(f[k])}
+  <label class="row"><div><strong>{label}</strong>{#if hint}<small>{hint}</small>{/if}</div>
+    <div class="slide"><input type="range" {min} max={Math.max(max, Number(saved[k]) || 0)} {step} value={n} oninput={(e) => (f[k] = e.currentTarget.value)} aria-valuetext={unit(n)} /><output>{unit(n)}</output></div>
+  </label>
+{/snippet}
+{#snippet pick(k: Key, label: string, options: [string, string][])}
+  <label class="row"><div><strong>{label}</strong></div><select class="input" bind:value={f[k]}>
+    {#each options as [v, l] (v)}<option value={v}>{l}</option>{/each}
+    {#if !options.some(([v]) => v === saved[k])}<option value={saved[k]}>{saved[k]}</option>{/if}
+  </select></label>
 {/snippet}
 {#snippet toggle(b: { get: () => boolean; set: (v: boolean) => void }, label: string, hint = '', disabled = false)}
   <label class="row"><div><strong>{label}</strong>{#if hint}<small>{hint}</small>{/if}</div><input type="checkbox" class="switch" {disabled} bind:checked={b.get, b.set} /></label>
@@ -174,7 +187,7 @@
         </select></label>
         <label class="row"><div><strong>Graine</strong></div><input class="input" bind:value={f['level-seed']} placeholder="Au hasard" maxlength="100" spellcheck="false" disabled={hasWorld} /></label>
         {@render toggle(hardcore, 'Hardcore', 'Une seule vie.', hasWorld)}
-        {@render num('spawn-protection', 'Protection du point de départ', 'En blocs. 0 = désactivée.')}
+        {@render pick('spawn-protection', 'Protection du point de départ', [['0', 'Aucune'], ['8', '8 blocs'], ['16', '16 blocs'], ['32', '32 blocs'], ['64', '64 blocs']])}
       </div>
       {#if hasWorld}<p class="note">Type, graine et hardcore sont fixés à la création du monde.</p>{/if}
 
@@ -182,18 +195,23 @@
       <h2>Accès</h2>
       <div class="card">
         <label class="row"><div><strong>Message d'accueil</strong><small>Affiché dans la liste des serveurs du jeu, deux lignes.</small></div><textarea class="input" rows="2" bind:value={f.motd} maxlength="120"></textarea></label>
-        {@render num('max-players', 'Joueurs maximum')}
+        {@render slider('max-players', 'Joueurs maximum', 1, 100, (n) => `${n}`)}
         {@render toggle(white, 'Liste blanche', 'Seuls les joueurs ajoutés peuvent entrer.')}
         {@render toggle(online, 'Comptes officiels seulement', f['online-mode'] === 'true' ? '' : "N'importe qui peut prendre le pseudo d'un autre.")}
-        {@render num('player-idle-timeout', 'Expulser les inactifs', 'En minutes. 0 = jamais.')}
+        {@render pick('player-idle-timeout', 'Expulser les inactifs', [['0', 'Jamais'], ['5', 'Après 5 min'], ['10', 'Après 10 min'], ['15', 'Après 15 min'], ['30', 'Après 30 min'], ['60', 'Après 1 h']])}
       </div>
 
     {:else if page === 'perf'}
       <h2>Performances</h2>
-      <div class="card">
-        {@render num('view-distance', "Distance d'affichage", 'De 3 à 32. Plus bas = moins de mémoire.')}
-        {#if since('1.18')}{@render num('simulation-distance', 'Distance de simulation', 'De 3 à 32. Plus bas = moins de processeur.')}{/if}
+      <div class="presets" role="group" aria-label="Réglages rapides">
+        {#each PRESETS as p (p[0])}<button type="button" class="btn" aria-pressed={isPreset(p)} onclick={() => preset(p)}>{p[0]}</button>{/each}
       </div>
+      <div class="card">
+        {@render slider('view-distance', "Distance d'affichage", 3, 32, chunks, `${view * 16} blocs, jusqu'à ${(2 * view + 1) ** 2} chunks par joueur.`)}
+        {#if simOn}{@render slider('simulation-distance', 'Distance de simulation', 3, 32, chunks, Number(f['simulation-distance']) > view ? "Inutile au-delà de la distance d'affichage." : 'Zone où les monstres et les cultures vivent.')}{/if}
+        {#if entOn}{@render slider('entity-broadcast-range-percentage', 'Distance des créatures', 10, 200, (n) => `${n} %`, 'À partir de quand un joueur les voit.', 10)}{/if}
+      </div>
+      {#if view > 16}<p class="note warn">Très lourd : réservé à un serveur puissant avec peu de joueurs.</p>{/if}
     {/if}
   </fieldset>
   {#if error && !ready}<button class="btn" onclick={load}>Réessayer</button>{/if}
@@ -212,5 +230,12 @@
   fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   textarea { font: inherit; height: auto; padding-block: 8px; resize: none; }
   .note { color: var(--muted); font-size: 0.89rem; margin-top: 10px; }
+  .warn { color: var(--warn, oklch(0.75 0.15 70)); }
+  .slide { display: flex; align-items: center; gap: 12px; }
+  .slide input { flex: 1; min-width: 0; accent-color: var(--primary); cursor: pointer; }
+  .slide input:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+  .slide output { min-width: 6.5em; text-align: right; font-variant-numeric: tabular-nums; }
+  .presets { display: flex; gap: 8px; margin: 12px 0 4px; }
+  .presets [aria-pressed='true'] { background: var(--primary-soft); color: var(--primary); }
   .restart { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 </style>
