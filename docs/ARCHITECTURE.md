@@ -50,6 +50,7 @@ runtime/java25/       Java Temurin 25 partagé (Minecraft)
 servers/<id>/         fichiers d'un serveur (server.jar, monde, artifacts FiveM…)
 trash/<id>/           serveur supprimé : server.json + files/
 actions.log           journal des actions
+agent.log             journal technique de l'agent (heures UTC, 1 Mo puis agent.log.1)
 tmp/                  envois de fichiers en cours, vidé au démarrage
 ```
 
@@ -127,6 +128,7 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 
 ## Sécurité (état actuel)
 
+- 10 mauvais jetons en 10 min : adresse bloquée 10 min (429), sauf la machine elle-même.
 - Jeton comparé en temps constant. HTTPS avec certificat auto-signé épinglé (empreinte confirmée par l'utilisateur, comme SSH). Ne pas exposer 7878 sur Internet pour autant.
 - Pare-feu Windows : 7878 et ports de jeu ouverts en `remoteip=localsubnet`.
 - Agent et jeux tournent en **SYSTEM** (à changer, voir PLAN).

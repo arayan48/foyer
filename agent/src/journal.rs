@@ -48,3 +48,53 @@ pub async fn list(State(app): S) -> Json<Vec<Value>> {
     let new = tokio::fs::read_to_string(app.data.join("actions.log")).await.unwrap_or_default();
     Json(new.lines().rev().chain(old.lines().rev()).filter_map(|l| serde_json::from_str(l).ok()).take(SHOWN).collect())
 }
+
+static AGENT_LOG: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
+
+/// Active `agent.log`, panics comprises.
+pub fn init(data: &std::path::Path) {
+    *AGENT_LOG.lock().unwrap_or_else(|e| e.into_inner()) = Some(data.join("agent.log"));
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |p| {
+        agent(&format!("panique : {p}"));
+        default(p);
+    }));
+}
+
+/// Journal technique de l'agent (console + fichier). Ne jamais y mettre le jeton.
+pub fn agent(msg: &str) {
+    use std::io::Write;
+    let at = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    // writeln et pas println : sans console, println paniquerait
+    let _ = writeln!(std::io::stdout(), "{msg}");
+    let guard = AGENT_LOG.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(path) = guard.as_ref() else { return };
+    if std::fs::metadata(path).is_ok_and(|m| m.len() > MAX_BYTES) {
+        let _ = std::fs::rename(path, path.with_extension("log.1"));
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = f.write_all(format!("{} {msg}\n", utc(at)).as_bytes());
+    }
+}
+
+/// Secondes Unix en `2026-11-22T19:43:13Z` (calendrier civil de Howard Hinnant).
+fn utc(secs: u64) -> String {
+    let (z, t) = (secs / 86400 + 719_468, secs % 86400);
+    let doe = z % 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + z / 146_097 * 400 + u64::from(month <= 2);
+    format!("{year}-{month:02}-{:02}T{:02}:{:02}:{:02}Z", doy - (153 * mp + 2) / 5 + 1, t / 3600, t / 60 % 60, t % 60)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn dates_utc() {
+        assert_eq!(super::utc(0), "1970-01-01T00:00:00Z");
+        assert_eq!(super::utc(951_782_400), "2000-02-29T00:00:00Z");
+        assert_eq!(super::utc(1_795_376_593), "2026-11-22T19:43:13Z");
+    }
+}

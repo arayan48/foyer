@@ -141,7 +141,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("monde"), "x").unwrap();
         let s: Server = serde_json::from_str(r#"{"id":"abc","name":"x","game":"minecraft","port":25565,"ram_mb":1024}"#).unwrap();
-        let app = Arc::new(App { data: data.clone(), token: String::new(), servers: vec![s].into(), live: Default::default(), host: Default::default() });
+        let app = Arc::new(App { data: data.clone(), token: String::new(), servers: vec![s].into(), live: Default::default(), failures: Default::default(), host: Default::default() });
         app.live.lock().await.insert("abc".into(), Live::new(Status::Stopped));
         let del = || crate::remove(State(app.clone()), UrlPath("abc".into()));
 

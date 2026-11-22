@@ -18,7 +18,7 @@ use axum::{Json, Router};
 use games::Game;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -120,6 +120,8 @@ struct App {
     token: String,
     servers: Mutex<Vec<Server>>,
     live: Mutex<HashMap<String, Live>>,
+    /// mauvais jetons récents par adresse
+    failures: Mutex<HashMap<IpAddr, VecDeque<Instant>>>,
     host: Mutex<HostStats>,
 }
 
@@ -145,10 +147,19 @@ type S = State<Arc<App>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let r = run().await;
+    if let Err(e) = &r {
+        journal::agent(&format!("arrêt sur erreur : {e:#}"));
+    }
+    r
+}
+
+async fn run() -> Result<()> {
     let data = std::env::var("FOYER_DATA").map(PathBuf::from).unwrap_or_else(|_| {
         if cfg!(windows) { PathBuf::from(r"C:\Foyer") } else { PathBuf::from("/var/lib/foyer") }
     });
     tokio::fs::create_dir_all(data.join("servers")).await?;
+    journal::init(&data);
     let token = match tokio::fs::read_to_string(data.join("token")).await {
         Ok(t) => t.trim().to_string(),
         Err(_) => {
@@ -160,7 +171,7 @@ async fn main() -> Result<()> {
     let servers: Vec<Server> = tokio::fs::read(data.join("servers.json")).await.ok()
         .and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
     let live = servers.iter().map(|s| (s.id.clone(), Live::new(Status::Stopped))).collect();
-    let app = Arc::new(App { data: data.clone(), token, servers: Mutex::new(servers), live: Mutex::new(live), host: Default::default() });
+    let app = Arc::new(App { data: data.clone(), token, servers: Mutex::new(servers), live: Mutex::new(live), failures: Default::default(), host: Default::default() });
 
     let _ = tokio::fs::remove_dir_all(data.join("tmp")).await; // envois interrompus
     tokio::spawn(stats_loop(app.clone()));
@@ -169,7 +180,7 @@ async fn main() -> Result<()> {
     let auto: Vec<String> = app.servers.lock().await.iter().filter(|s| s.auto_start).map(|s| s.id.clone()).collect();
     for id in auto {
         if let Err(e) = start(&app, &id).await {
-            eprintln!("démarrage auto de {id} : {e:#}");
+            journal::agent(&format!("démarrage auto de {id} : {e:#}"));
         }
     }
 
@@ -198,10 +209,10 @@ async fn main() -> Result<()> {
         .with_state(app);
 
     let addr = std::env::var("FOYER_ADDR").unwrap_or_else(|_| "0.0.0.0:7878".into());
-    println!("Foyer agent sur https://{addr}  données : {}", data.display());
-    println!("Jeton : fichier {}", data.join("token").display());
+    journal::agent(&format!("Foyer agent {} sur https://{addr}  données : {}", env!("CARGO_PKG_VERSION"), data.display()));
+    journal::agent(&format!("Jeton : fichier {}", data.join("token").display()));
     let (tls, fp) = tls(&data).await?;
-    println!("Empreinte du certificat : {fp}");
+    journal::agent(&format!("Empreinte du certificat : {fp}"));
     axum_server::bind_rustls(addr.parse()?, tls).serve(api.into_make_service_with_connect_info::<SocketAddr>()).await?;
     Ok(())
 }
@@ -226,14 +237,45 @@ fn fingerprint(der: &[u8]) -> String {
     ring::digest::digest(&ring::digest::SHA256, der).as_ref().iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":")
 }
 
-async fn auth(State(app): S, req: Request, next: Next) -> Response {
+async fn auth(State(app): S, ConnectInfo(addr): ConnectInfo<SocketAddr>, req: Request, next: Next) -> Response {
     // jeton seulement en en-tête : jamais dans l'URL, qui finit dans les journaux
     let given = req.headers().get("authorization").and_then(|h| h.to_str().ok()).and_then(|h| h.strip_prefix("Bearer ")).unwrap_or_default().to_string();
-    if req.method() == axum::http::Method::OPTIONS || eq_ct(given.as_bytes(), app.token.as_bytes()) {
-        next.run(req).await
-    } else {
-        StatusCode::UNAUTHORIZED.into_response()
+    if req.method() == axum::http::Method::OPTIONS {
+        return next.run(req).await;
     }
+    let ip = addr.ip();
+    // la machine elle-même n'est jamais bloquée : l'installeur doit pouvoir arrêter l'agent
+    let guarded = !ip.is_loopback();
+    if guarded && is_blocked(&*app.failures.lock().await, ip, Instant::now()) {
+        return (StatusCode::TOO_MANY_REQUESTS, "Trop de mauvais jetons, réessaie dans 10 min").into_response();
+    }
+    if eq_ct(given.as_bytes(), app.token.as_bytes()) {
+        return next.run(req).await;
+    }
+    // sans jeton du tout : lecture de l'empreinte par le client, pas un essai
+    if guarded && !given.is_empty() && note_failure(&mut *app.failures.lock().await, ip, Instant::now()) {
+        journal::agent(&format!("{ip} bloquée 10 min : {MAX_FAILURES} mauvais jetons"));
+    }
+    StatusCode::UNAUTHORIZED.into_response()
+}
+
+const MAX_FAILURES: usize = 10;
+const BLOCK: Duration = Duration::from_secs(600);
+
+fn is_blocked(failures: &HashMap<IpAddr, VecDeque<Instant>>, ip: IpAddr, now: Instant) -> bool {
+    failures.get(&ip).is_some_and(|f| f.len() >= MAX_FAILURES && f.back().is_some_and(|t| now.duration_since(*t) < BLOCK))
+}
+
+/// Note un mauvais jeton ; vrai si l'adresse vient d'être bloquée.
+fn note_failure(failures: &mut HashMap<IpAddr, VecDeque<Instant>>, ip: IpAddr, now: Instant) -> bool {
+    failures.retain(|_, f| f.back().is_some_and(|t| now.duration_since(*t) < BLOCK));
+    let f = failures.entry(ip).or_default();
+    // une adresse encore dans la table : on oublie ses essais trop vieux
+    while f.front().is_some_and(|t| now.duration_since(*t) >= BLOCK) {
+        f.pop_front();
+    }
+    f.push_back(now);
+    f.len() == MAX_FAILURES
 }
 
 fn eq_ct(a: &[u8], b: &[u8]) -> bool {
@@ -357,6 +399,7 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
                 Err(e) => {
                     l.status = Status::Error;
                     l.push(format!("[foyer] Erreur : {e:#}"));
+                    journal::agent(&format!("installation de {} : {e:#}", s2.id));
                 }
             }
         }
@@ -690,6 +733,7 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
     let id = id.to_string();
     tokio::spawn(async move {
         let code = child.wait().await.ok().and_then(|c| c.code());
+        journal::agent(&format!("serveur {id} terminé (code {code:?})"));
         let auto = app.servers.lock().await.iter().find(|s| s.id == id).is_some_and(|s| s.auto_restart);
         let retry = {
             let mut live = app.live.lock().await;
@@ -719,6 +763,7 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
                 return;
             }
             if let Err(e) = start(&app, &id).await {
+                journal::agent(&format!("redémarrage de {id} : {e:#}"));
                 if let Some(l) = app.live.lock().await.get_mut(&id) { l.push(format!("[foyer] Redémarrage raté : {e:#}")) }
             }
         }
@@ -935,6 +980,21 @@ mod tests {
         let fp = super::fingerprint(b"abc");
         assert_eq!(fp.len(), 32 * 3 - 1);
         assert!(fp.starts_with("BA:78:16:BF"));
+    }
+
+    #[test]
+    fn blocage_mauvais_jetons() {
+        let (mut f, t) = (HashMap::new(), Instant::now());
+        let (a, b): (IpAddr, IpAddr) = ("10.0.0.1".parse().unwrap(), "10.0.0.2".parse().unwrap());
+        for _ in 0..MAX_FAILURES - 1 {
+            assert!(!note_failure(&mut f, a, t));
+        }
+        assert!(!is_blocked(&f, a, t));
+        assert!(note_failure(&mut f, a, t));
+        assert!(is_blocked(&f, a, t) && !is_blocked(&f, b, t));
+        assert!(!is_blocked(&f, a, t + BLOCK));
+        assert!(!note_failure(&mut f, a, t + BLOCK));
+        assert_eq!(f[&a].len(), 1);
     }
 
     #[test]

@@ -69,7 +69,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P1** Appairage par code à 6 chiffres au lieu de copier le jeton
 - [x] **P1** Jeton de la console hors de l'URL (sous-protocole WebSocket ou ticket court)
 - [ ] **P1** Jeton par appareil, révocable un par un
-- [ ] **P2** Blocage temporaire après plusieurs mauvais jetons
+- [x] **P2** Blocage temporaire après plusieurs mauvais jetons
 - [x] **P2** Corbeille : serveur supprimé archivé quelques jours avant effacement
 - [ ] **P2** `SECURITY.md` (signaler une faille en privé) + `cargo audit` / `npm audit` dans GitHub Actions
 - [ ] **P3** Doc : accès à distance via VPN (Tailscale, WireGuard) plutôt que port ouvert sur la box
@@ -87,7 +87,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 ## 10. Qualité et projet
 - [ ] **P1** Tests de l'agent (install, start, stop, limites) dans un CI GitHub Actions
 - [ ] **P1** Build et release automatiques par GitHub Actions (plus besoin de claude-box)
-- [ ] **P2** Journal de l'agent dans un fichier (`C:\Foyer\agent.log`), rotation
+- [x] **P2** Journal de l'agent dans un fichier (`C:\Foyer\agent.log`), rotation
 - [ ] **P2** Page de documentation (installation, FAQ, dépannage)
 - [ ] **P3** Traduction anglaise (projet open source)
 
