@@ -19,6 +19,18 @@ http.createServer(async (q, r) => {
   const json = (v) => (r.setHeader('Content-Type', 'application/json'), r.end(JSON.stringify(v)))
   if (q.url === '/api/system') return json({ ...sys, cpu: 10 + Math.random() * 20 })
   if (q.url === '/api/catalog') return json({ minecraft: [{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.20.4', java: 17 }, { id: '1.16.5', java: 8 }], java: [8, 11, 17, 21, 22, 23, 24, 25], fivem: [{ id: 'recommended', build: '38435' }, { id: 'optional', build: '7290' }, { id: 'latest', build: '38781' }] })
+  if (/^\/api\/catalog\/\w+$/.test(q.url)) return json([{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.21.10', java: 21 }, { id: '1.20.4', java: 17 }])
+  const sw = q.url.match(/^\/api\/servers\/(\w+)\/software$/)
+  if (sw) {
+    let b = ''
+    for await (const c of q) b += c
+    b = JSON.parse(b)
+    const s = servers.find((s) => s.id === sw[1])
+    if (s.status !== 'stopped') return r.writeHead(409).end("Arrête le serveur d'abord")
+    s.status = 'installing'
+    setTimeout(() => Object.assign(s, { status: 'stopped', version: `${{ vanilla: 'Vanilla', paper: 'Paper', purpur: 'Purpur', fabric: 'Fabric', forge: 'Forge', neoforge: 'NeoForge' }[b.software]} ${b.version}` }), 3000)
+    return r.writeHead(204).end()
+  }
   if (q.url === '/api/servers' && q.method === 'POST') {
     let body = ''
     q.on('data', (c) => (body += c))

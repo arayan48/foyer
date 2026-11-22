@@ -1,4 +1,5 @@
 //! Recettes de jeux : comment installer et lancer chaque serveur.
+use crate::software;
 use anyhow::{anyhow, bail, Context, Result};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -95,29 +96,9 @@ pub fn java_for(mc: &str) -> u8 {
     }
 }
 
-/// Plus haute version stable de Paper, comparée par numéros (1.10 < 1.21 < 26.3).
-fn latest_paper(p: &Value) -> Option<String> {
-    p["versions"]
-        .as_object()?
-        .values()
-        .filter_map(|v| v.as_array())
-        .flatten()
-        .filter_map(|x| x.as_str())
-        .filter(|x| !x.contains('-'))
-        .max_by_key(|x| x.split('.').filter_map(|n| n.parse().ok()).collect::<Vec<u32>>())
-        .map(str::to_string)
-}
-
-/// Versions proposées à la création : Minecraft (Paper stables) et builds FiveM.
+/// Versions proposées à la création : Minecraft Vanilla et builds FiveM.
 pub async fn catalog() -> Result<Value> {
-    let p: Value = get_json("https://fill.papermc.io/v3/projects/paper").await?;
-    let mc: Vec<Value> = p["versions"]
-        .as_object()
-        .map(|m| m.values().filter_map(|v| v.as_array()).flatten().filter_map(|x| x.as_str()).filter(|x| !x.contains('-')).collect::<Vec<_>>())
-        .unwrap_or_default()
-        .into_iter()
-        .map(|v| serde_json::json!({ "id": v, "java": java_for(v) }))
-        .collect();
+    let mc = minecraft_versions(software::Software::Vanilla).await?;
     let os = if WIN { "win32" } else { "linux" };
     let f: Value = get_json(&format!("https://changelogs-live.fivem.net/api/changelog/versions/{os}/server")).await.unwrap_or_default();
     let fivem: Vec<Value> = ["recommended", "optional", "latest"]
@@ -127,30 +108,20 @@ pub async fn catalog() -> Result<Value> {
     Ok(serde_json::json!({ "minecraft": mc, "java": JAVAS, "fivem": fivem }))
 }
 
+/// Versions d'un logiciel Minecraft avec le Java conseillé.
+pub async fn minecraft_versions(sw: software::Software) -> Result<Vec<Value>> {
+    Ok(software::versions(sw).await?.into_iter().map(|v| serde_json::json!({ "id": v, "java": java_for(&v) })).collect())
+}
+
 /// Installe le serveur et renvoie la version installée.
 pub async fn install(game: Game, data: &Path, dir: &Path, port: u16, name: &str, o: &Setup, log: &impl Fn(String)) -> Result<String> {
     tokio::fs::create_dir_all(dir).await?;
     let label = match game {
         Game::Minecraft => {
-            let version = match o.version.as_deref().filter(|v| !v.is_empty()) {
-                Some(v) => v.to_string(),
-                None => {
-                    log("Recherche de la dernière version de Paper…".into());
-                    let p: Value = get_json("https://fill.papermc.io/v3/projects/paper").await?;
-                    latest_paper(&p).ok_or_else(|| anyhow!("aucune version Paper stable"))?
-                }
-            };
-            if !version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-') {
-                bail!("version invalide");
-            }
-            java(data, o.java.unwrap_or_else(|| java_for(&version)), log).await?;
-            let b: Value = get_json(&format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds/latest")).await?;
-            let url = b["downloads"]["server:default"]["url"].as_str().ok_or_else(|| anyhow!("pas d'URL Paper"))?;
-            log(format!("Téléchargement de Paper {version}…"));
-            download(url, &dir.join("server.jar")).await?;
+            let label = software::install(software::Software::Vanilla, data, dir, o.version.as_deref(), o.java, log).await?;
             tokio::fs::write(dir.join("eula.txt"), "eula=true\n").await?;
             tokio::fs::write(dir.join("server.properties"), format!("server-port={port}\nquery.port={port}\n")).await?;
-            format!("Paper {version}")
+            label
         }
         Game::Fivem => {
             let os = if WIN { "win32" } else { "linux" };
@@ -270,11 +241,13 @@ impl Game {
 /// Programme, arguments et dossier de travail pour lancer le serveur.
 pub async fn command(game: Game, data: &Path, dir: &Path, port: u16, ram_mb: u32, java: u8, txadmin: bool) -> Result<(PathBuf, Vec<String>, PathBuf)> {
     Ok(match game {
-        Game::Minecraft => (
-            java_bin(data, java).await?,
-            vec![format!("-Xms{ram_mb}M"), format!("-Xmx{ram_mb}M"), "-jar".into(), "server.jar".into(), "nogui".into()],
-            dir.to_path_buf(),
-        ),
+        Game::Minecraft => {
+            let launch = tokio::fs::read_to_string(dir.join(software::LAUNCH)).await.unwrap_or_else(|_| "-jar\nserver.jar".into());
+            let mut args = vec![format!("-Xms{ram_mb}M"), format!("-Xmx{ram_mb}M"), "-Dlog4j2.formatMsgNoLookups=true".into()];
+            args.extend(launch.lines().map(str::to_string));
+            args.push("nogui".into());
+            (java_bin(data, java).await?, args, dir.to_path_buf())
+        }
         Game::Fivem => {
             let a = dir.join("artifacts");
             let exe = if WIN { a.join("FXServer.exe") } else { a.join("run.sh") };
@@ -338,7 +311,7 @@ async fn java_works(bin: &Path) -> Result<()> {
     Ok(())
 }
 
-async fn java_bin(data: &Path, v: u8) -> Result<PathBuf> {
+pub async fn java_bin(data: &Path, v: u8) -> Result<PathBuf> {
     java_in(&data.join("runtime").join(format!("java{v}"))).await
 }
 
@@ -477,11 +450,11 @@ async fn import_sql(data: &Path, res: &Path, log: &impl Fn(String)) -> Result<()
     Ok(())
 }
 
-async fn get_json(url: &str) -> Result<Value> {
+pub async fn get_json(url: &str) -> Result<Value> {
     Ok(client().get(url).send().await?.error_for_status()?.json().await?)
 }
 
-async fn download(url: &str, to: &Path) -> Result<()> {
+pub async fn download(url: &str, to: &Path) -> Result<()> {
     let r = client().get(url).send().await?.error_for_status().with_context(|| url.to_string())?;
     let tmp = to.with_extension("part");
     let mut f = tokio::fs::File::create(&tmp).await?;
@@ -498,11 +471,14 @@ async fn download(url: &str, to: &Path) -> Result<()> {
 /// Plugins par page dans la recherche.
 const PAGE: u32 = 20;
 
-/// Recherche de plugins Paper sur Modrinth, compatibles avec la version de Minecraft si connue.
+/// Recherche de plugins ou mods sur Modrinth (`kind` : plugin ou mod), compatibles avec la version de Minecraft si connue.
 /// `sort` : relevance, downloads, follows, newest, updated. `page` commence à 0. `cat` : catégorie Modrinth ou vide.
-pub async fn plugin_search(q: &str, mc: Option<&str>, sort: &str, page: u32, cat: &str) -> Result<Value> {
+pub async fn plugin_search(kind: &str, loader: &str, q: &str, mc: Option<&str>, sort: &str, page: u32, cat: &str) -> Result<Value> {
     let sort = if ["downloads", "follows", "newest", "updated"].contains(&sort) { sort } else { "relevance" };
-    let mut facets = vec![r#"["project_type:plugin"]"#.to_string(), r#"["categories:paper"]"#.to_string()];
+    let mut facets = vec![serde_json::json!([format!("project_type:{kind}")]).to_string(), serde_json::json!([format!("categories:{loader}")]).to_string()];
+    if kind == "mod" {
+        facets.push(r#"["server_side:required","server_side:optional"]"#.into());
+    }
     if !cat.is_empty() && cat.len() < 40 && cat.chars().all(|c| c.is_ascii_lowercase() || c == '-') {
         facets.push(serde_json::json!([format!("categories:{cat}")]).to_string());
     }
@@ -523,11 +499,11 @@ pub async fn plugin_search(q: &str, mc: Option<&str>, sort: &str, page: u32, cat
 }
 
 /// Télécharge la dernière version compatible d'un plugin Modrinth dans `dir`. Renvoie le nom du fichier.
-pub async fn plugin_install(project: &str, mc: Option<&str>, dir: &Path) -> Result<String> {
+pub async fn plugin_install(loader: &str, project: &str, mc: Option<&str>, dir: &Path) -> Result<String> {
     if project.is_empty() || !project.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
         bail!("plugin inconnu");
     }
-    let mut q = vec![("loaders", r#"["paper"]"#.to_string())];
+    let mut q = vec![("loaders", serde_json::json!([loader]).to_string())];
     if let Some(mc) = mc {
         q.push(("game_versions", serde_json::json!([mc]).to_string()));
     }
@@ -608,12 +584,6 @@ mod tests {
         use super::plugin_file_ok as ok;
         assert!(ok("LuckPerms-5.4.jar") && ok("a.jar.disabled"));
         assert!(!ok("../a.jar") && !ok("a/b.jar") && !ok("a\\b.jar") && !ok("a.txt") && !ok(".jar"));
-    }
-
-    #[test]
-    fn derniere_version_de_paper() {
-        let p = serde_json::json!({ "versions": { "1.10": ["1.10.2"], "1.21": ["1.21.11", "1.21.9"], "26.3": ["26.3", "26.3-rc-3"] } });
-        assert_eq!(super::latest_paper(&p).as_deref(), Some("26.3"));
     }
 
     #[cfg(unix)]

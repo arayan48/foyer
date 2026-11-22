@@ -12,7 +12,7 @@ _État : v0.1.0 (2026-11-18)._
 └──────────────────┘                │   ├─ WebSocket console                   │
                                     │   ├─ stats (sysinfo, toutes les 2 s)     │
  Sur le serveur (option) :          │   └─ lance les jeux en processus enfants │
-┌──────────────────┐   127.0.0.1    │        ├─ java -jar server.jar (Paper)   │
+┌──────────────────┐   127.0.0.1    │        ├─ java -jar server.jar           │
 │  Foyer Serveur   │ ─────────────▶ │        └─ FXServer.exe (+ txAdmin)       │
 │  (même appli)    │  jeton lu dans │                                          │
 └──────────────────┘  C:\Foyer\token└──────────────────────────────────────────┘
@@ -35,6 +35,7 @@ Deux installeurs construits à partir de la même appli :
 | `main.rs` | serveur HTTPS (axum 0.8 + axum-server/rustls, certificat auto-signé via rcgen), auth, état, cycle de vie des processus, stats, pare-feu, persistance |
 | `games.rs` | recettes de jeux : installation (téléchargements, extraction), commande de lancement, ports, commande d'arrêt, marqueur « prêt » |
 | `files.rs` | fichiers d'un serveur, chemins bloqués dans `servers/<id>` (liens symboliques compris) |
+| `software.rs` | logiciels Minecraft (Vanilla, Paper, Purpur, Fabric, Forge, NeoForge) : versions et installation |
 | `players.rs` | joueurs Minecraft : présents, listes, commandes |
 | `journal.rs` | journal des actions (`actions.log`, 1 Mo puis `actions.log.1`) |
 | `trash.rs` | corbeille des serveurs supprimés |
@@ -63,6 +64,8 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | GET | `/api/servers` | serveurs + statut, cpu, mem, disk (octets, calculé toutes les 5 min, `null` avant), admin_port |
 | POST | `/api/servers` | crée et installe `{name, game, port?, ram_mb?, eula}` |
 | PATCH | `/api/servers/{id}` | modifie `{name?, port?, ram_mb?, auto_start?, auto_restart?}` ; port : Minecraft seulement, serveur arrêté (réécrit `server.properties`, pare-feu) |
+| GET | `/api/catalog/{logiciel}` | versions de Minecraft d'un logiciel, la plus récente d'abord |
+| POST | `/api/servers/{id}/software` | Minecraft, serveur arrêté : installe `{software, version}`, garde mondes et réglages |
 | GET / PUT | `/api/servers/{id}/properties` | Minecraft : lit / écrit les clés de `server.properties` (`{clé: valeur}`) ; PUT ne touche qu'aux clés envoyées, refuse le port (passer par PATCH) |
 | DELETE | `/api/servers/{id}` | arrête, retire le pare-feu, met le dossier à la corbeille ; 409 pendant l'installation |
 | GET | `/api/servers/{id}/files?path=` | liste un dossier `[{name, dir, size, modified}]` ; chemins relatifs avec `/` |
@@ -88,7 +91,7 @@ Commande stdin (`stop` pour Minecraft) puis attente 30 s, sinon arbre tué (`tas
 ### Jeux
 | Jeu | Source | Lancement | Ports |
 |---|---|---|---|
-| Minecraft | Paper via `fill.papermc.io/v3` (dernière stable) + Java 25 (Adoptium) | `java -Xms -Xmx -jar server.jar nogui` | TCP port (défaut 25565) |
+| Minecraft | Vanilla (Mojang) à la création, autre logiciel ensuite depuis l'onglet Version ; Java conseillé (Adoptium) | `java -Xms -Xmx -jar server.jar nogui`, ou les arguments de `foyer-launch.txt` (Forge, NeoForge, vieux Vanilla) | TCP port (défaut 25565) |
 | FiveM | build « recommended » via `changelogs-live.fivem.net` | `FXServer.exe +set txAdminPort <port+10000>` | TCP+UDP port (30120), TCP txAdmin (40120) |
 
 Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).

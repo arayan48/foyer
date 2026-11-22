@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowLeft, Check, Search } from 'lucide-svelte'
-  import { GAMES, call, type Catalog, type Conn, type Game, type Server } from './api'
+  import { GAMES, call, cmpVersion, type Catalog, type Conn, type Game, type Server } from './api'
 
   // affiches officielles, © leurs éditeurs (mêmes fichiers que le site)
   import minecraft from '../assets/games/minecraft.webp'
@@ -48,8 +48,7 @@
   call<Catalog>(conn, '/api/catalog').then((c) => (catalog = c)).catch((e) => (catalogError = (e as Error).message))
 
   // de la plus récente à la plus ancienne (l'agent les renvoie dans le désordre)
-  const vkey = (id: string) => id.split('.').map((n) => n.padStart(4, '0')).join('.')
-  let mcVersions = $derived([...(catalog?.minecraft ?? [])].sort((a, b) => vkey(b.id).localeCompare(vkey(a.id))))
+  let mcVersions = $derived([...(catalog?.minecraft ?? [])].sort((a, b) => cmpVersion(b.id, a.id)))
   let recommendedJava = $derived(mcVersions.find((v) => v.id === (version || mcVersions[0]?.id))?.java ?? 25)
   // nom facultatif : minecraft1, fivem2… premier numéro libre
   let autoName = $derived.by(() => {
@@ -169,7 +168,7 @@
           <option value="">La plus récente{mcVersions[0] ? ` (${mcVersions[0].id})` : ''}</option>
           {#each mcVersions as v}<option value={v.id}>{v.id}</option>{/each}
         </select>
-        <small>Les joueurs doivent avoir la même version. Serveur Paper (plugins).</small>
+        <small>Les joueurs doivent avoir la même version. Plugins et mods : onglet Version du serveur, après l'installation.</small>
       </label>
       <label class="field">
         <span>Java</span>

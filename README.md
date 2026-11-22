@@ -34,7 +34,7 @@ Foyer turns any Windows or Linux machine into a game server host, without config
 
 | Game | Status | Source |
 |---|---|---|
-| Minecraft (Paper) | ✅ Supported | PaperMC, latest stable + Java 25 (Adoptium) |
+| Minecraft (Java) | ✅ Supported | Vanilla by default; Paper, Purpur, Fabric, Forge, NeoForge in one click; matching Java (Adoptium) |
 | FiveM (txAdmin) | 🗺️ Coming soon | Official "recommended" build |
 | More games | 🗺️ Planned | Foyer uses a game recipe system built for new titles, see [ROADMAP.md](ROADMAP.md) |
 
@@ -42,7 +42,7 @@ Foyer turns any Windows or Linux machine into a game server host, without config
 
 - **One-click install**: downloads the game server and its runtime, ready to launch.
 - **Full lifecycle**: start, stop, restart with graceful shutdown and process-tree cleanup.
-- **Plugins**: browse Modrinth from the app, filter by category, sort by popularity or date, install, toggle and remove Paper plugins.
+- **Plugins and mods**: browse Modrinth from the app, filter by category, sort by popularity or date, install, toggle and remove.
 - **Shaders**: browse Modrinth shaders and share them with your players.
 - **Live console**: real-time logs and command input over WebSocket.
 - **Monitoring**: per-server CPU and memory, host CPU, RAM and disk.

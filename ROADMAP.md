@@ -17,8 +17,8 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [x] **P1** Page **Paramètres d'un serveur** (v0.2 : tout sauf CPU) : nom, port, RAM, CPU, démarrage auto au boot, redémarrage auto si crash
 - [x] **P1** Éditeur `server.properties` (Minecraft) en formulaire : difficulté, joueurs max, mode de jeu, whitelist, seed, MOTD
 - [ ] **P1** Éditeur `server.cfg` (FiveM) : nom, slots, clé de licence (masquée)
-- [ ] **P2** Choix de la version du jeu (Minecraft 1.20, 1.21, 26.x… ; build FiveM recommandé / dernier)
-- [ ] **P2** Choix du type Minecraft : Paper, Vanilla, Fabric, Forge, NeoForge, Purpur
+- [x] **P2** Choix de la version du jeu (Minecraft 1.20, 1.21, 26.x… ; build FiveM recommandé / dernier)
+- [x] **P2** Choix du type Minecraft : Paper, Vanilla, Fabric, Forge, NeoForge, Purpur
 - [ ] **P2** Variables / arguments Java avancés (flags Aikar)
 - [ ] **P2** Paramètres de l'agent depuis l'appli : port, dossier de données, régénérer le jeton
 - [ ] **P3** Profils de réglages réutilisables (« Survie 10 joueurs », « RP 32 slots »)

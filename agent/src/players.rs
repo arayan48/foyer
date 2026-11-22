@@ -41,7 +41,7 @@ async fn names(file: &Path) -> Vec<String> {
 }
 
 pub async fn list(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<Value>, Err> {
-    let (plugins, _) = mc_plugins(&app, &id).await?;
+    let (plugins, ..) = mc_plugins(&app, &id).await?;
     let online = app.live.lock().await.get(&id).map(|l| l.players.clone()).unwrap_or_default();
     Ok(Json(json!({
         "online": online,

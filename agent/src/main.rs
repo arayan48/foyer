@@ -5,6 +5,7 @@ mod games;
 mod journal;
 mod limits;
 mod players;
+mod software;
 mod trash;
 
 use anyhow::Result;
@@ -52,7 +53,7 @@ struct Server {
     /// bloque la mémoire du processus autour de ram_mb
     #[serde(default)]
     ram_cap: bool,
-    /// version installée (« Paper 1.21.11 », « Build 38435 »)
+    /// version installée (« Vanilla 26.3 », « Paper 1.21.11 », « Build 38435 »)
     #[serde(default)]
     version: Option<String>,
     /// version de Java (Minecraft), 25 pour les anciens serveurs
@@ -188,9 +189,11 @@ async fn run() -> Result<()> {
         .route("/api/system", get(system))
         .route("/api/shutdown", post(shutdown))
         .route("/api/catalog", get(catalog))
+        .route("/api/catalog/{software}", get(software_versions))
         .route("/api/servers", get(list).post(create))
         .route("/api/servers/{id}", axum::routing::delete(remove).patch(update))
         .route("/api/servers/{id}/{action}", post(action))
+        .route("/api/servers/{id}/software", post(software_set))
         .route("/api/servers/{id}/console", get(console))
         .route("/api/servers/{id}/properties", get(props_get).put(props_put))
         .route("/api/servers/{id}/plugins", get(plugins).post(plugin_add))
@@ -340,6 +343,56 @@ async fn catalog() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     games::catalog().await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:#}")))
 }
 
+async fn software_versions(UrlPath(sw): UrlPath<software::Software>) -> Result<Json<Vec<serde_json::Value>>, Err> {
+    games::minecraft_versions(sw).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:#}")))
+}
+
+#[derive(Deserialize)]
+struct SetSoftware { software: software::Software, version: String }
+
+/// Change le logiciel ou la version de Minecraft d'un serveur arrêté. Mondes et réglages restent.
+async fn software_set(State(app): S, UrlPath(id): UrlPath<String>, Json(b): Json<SetSoftware>) -> Result<StatusCode, Err> {
+    mc_plugins(&app, &id).await?; // refuse serveur inconnu ou autre jeu
+    let java = games::java_for(&b.version);
+    {
+        let mut live = app.live.lock().await;
+        let l = live.get_mut(&id).filter(|l| matches!(l.status, Status::Stopped | Status::Error)).ok_or((StatusCode::CONFLICT, "Arrête le serveur d'abord".into()))?;
+        l.status = Status::Installing;
+    }
+    tokio::spawn(async move {
+        let dir = app.data.join("servers").join(&id);
+        let log = logger(&app, &id);
+        let r = software::install(b.software, &app.data, &dir, Some(&b.version), Some(java), &log).await;
+        if let Ok(v) = &r {
+            log(format!("{v} installé."));
+            let mut servers = app.servers.lock().await;
+            if let Some(x) = servers.iter_mut().find(|x| x.id == id) {
+                x.version = Some(v.clone());
+                x.java = java;
+            }
+            save(&app, &servers).await;
+        }
+        if let Some(l) = app.live.lock().await.get_mut(&id) {
+            l.status = Status::Stopped;
+            if let Err(e) = r {
+                l.status = Status::Error;
+                l.push(format!("[foyer] Erreur : {e:#}"));
+                journal::agent(&format!("changement de logiciel de {id} : {e:#}"));
+            }
+        }
+    });
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Écrit dans la console d'un serveur depuis une fonction non asynchrone.
+fn logger(app: &Arc<App>, id: &str) -> impl Fn(String) + use<> {
+    let (app, id) = (app.clone(), id.to_string());
+    move |m| {
+        let (app, id) = (app.clone(), id.clone());
+        tokio::spawn(async move { if let Some(l) = app.live.lock().await.get_mut(&id) { l.push(format!("[foyer] {m}")) } });
+    }
+}
+
 async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>, (StatusCode, String)> {
     let bad = |m: &str| Err((StatusCode::BAD_REQUEST, m.to_string()));
     let name = n.name.trim().to_string();
@@ -377,11 +430,7 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     let s2 = s.clone();
     tokio::spawn(async move {
         let dir = app2.data.join("servers").join(&s2.id);
-        let log = |m: String| {
-            let app3 = app2.clone();
-            let id = s2.id.clone();
-            tokio::spawn(async move { if let Some(l) = app3.live.lock().await.get_mut(&id) { l.push(format!("[foyer] {m}")) } });
-        };
+        let log = logger(&app2, &s2.id);
         let setup = games::Setup { java: Some(s2.java), txadmin: s2.txadmin, framework: s2.framework.clone(), ..n.setup };
         let r = games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await;
         if let Ok(v) = &r {
@@ -516,19 +565,23 @@ async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> Result<StatusCod
 
 type Err = (StatusCode, String);
 
-/// Dossier plugins et version de Minecraft (« Paper 1.21.11 » → « 1.21.11 ») d'un serveur Minecraft.
-async fn mc_plugins(app: &App, id: &str) -> Result<(PathBuf, Option<String>), Err> {
+/// Dossier plugins ou mods, logiciel et version de Minecraft d'un serveur Minecraft.
+async fn mc_plugins(app: &App, id: &str) -> Result<(PathBuf, software::Software, Option<String>), Err> {
     let s = app.servers.lock().await.iter().find(|s| s.id == id).cloned().ok_or((StatusCode::NOT_FOUND, "serveur inconnu".into()))?;
     if s.game != Game::Minecraft {
-        return Err((StatusCode::BAD_REQUEST, "Plugins réservés à Minecraft".into()));
+        return Err((StatusCode::BAD_REQUEST, "Réservé à Minecraft".into()));
     }
-    let mc = s.version.as_deref().and_then(|v| v.strip_prefix("Paper ")).map(str::to_string);
-    Ok((app.data.join("servers").join(id).join("plugins"), mc))
+    let (sw, mc) = software::parse(s.version.as_deref());
+    Ok((app.data.join("servers").join(id).join(sw.addons().map_or("plugins", |a| a.0)), sw, mc))
+}
+
+fn no_addons() -> Err {
+    (StatusCode::BAD_REQUEST, "Vanilla n'accepte ni plugins ni mods".into())
 }
 
 /// Chemin de `server.properties` d'un serveur Minecraft.
 async fn mc_props(app: &App, id: &str) -> Result<PathBuf, Err> {
-    let (dir, _) = mc_plugins(app, id).await?;
+    let (dir, ..) = mc_plugins(app, id).await?;
     Ok(dir.with_file_name("server.properties"))
 }
 
@@ -559,7 +612,7 @@ async fn props_put(State(app): S, UrlPath(id): UrlPath<String>, Json(kv): Json<s
 struct Plugin { file: String, enabled: bool, size: u64 }
 
 async fn plugins(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<Vec<Plugin>>, Err> {
-    let (dir, _) = mc_plugins(&app, &id).await?;
+    let (dir, ..) = mc_plugins(&app, &id).await?;
     let mut out = Vec::new();
     if let Ok(mut rd) = tokio::fs::read_dir(&dir).await {
         while let Ok(Some(e)) = rd.next_entry().await {
@@ -578,23 +631,25 @@ async fn plugins(State(app): S, UrlPath(id): UrlPath<String>) -> Result<Json<Vec
 struct Q { #[serde(default)] q: String, #[serde(default)] sort: String, #[serde(default)] page: u32, #[serde(default)] cat: String }
 
 async fn plugin_search(State(app): S, UrlPath(id): UrlPath<String>, axum::extract::Query(q): axum::extract::Query<Q>) -> Result<Json<serde_json::Value>, Err> {
-    let (_, mc) = mc_plugins(&app, &id).await?;
-    games::plugin_search(&q.q, mc.as_deref(), &q.sort, q.page, &q.cat).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("Modrinth : {e:#}")))
+    let (_, sw, mc) = mc_plugins(&app, &id).await?;
+    let (_, kind, loader) = sw.addons().ok_or_else(no_addons)?;
+    games::plugin_search(kind, loader, &q.q, mc.as_deref(), &q.sort, q.page, &q.cat).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("Modrinth : {e:#}")))
 }
 
 #[derive(Deserialize)]
 struct AddPlugin { project: String }
 
 async fn plugin_add(State(app): S, UrlPath(id): UrlPath<String>, Json(b): Json<AddPlugin>) -> Result<Json<String>, Err> {
-    let (dir, mc) = mc_plugins(&app, &id).await?;
-    games::plugin_install(&b.project, mc.as_deref(), &dir).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:#}")))
+    let (dir, sw, mc) = mc_plugins(&app, &id).await?;
+    let (_, _, loader) = sw.addons().ok_or_else(no_addons)?;
+    games::plugin_install(loader, &b.project, mc.as_deref(), &dir).await.map(Json).map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:#}")))
 }
 
 #[derive(Deserialize)]
 struct Toggle { enabled: bool }
 
 async fn plugin_toggle(State(app): S, UrlPath((id, file)): UrlPath<(String, String)>, Json(t): Json<Toggle>) -> Result<StatusCode, Err> {
-    let (dir, _) = mc_plugins(&app, &id).await?;
+    let (dir, ..) = mc_plugins(&app, &id).await?;
     if !games::plugin_file_ok(&file) {
         return Err((StatusCode::BAD_REQUEST, "fichier invalide".into()));
     }
@@ -607,7 +662,7 @@ async fn plugin_toggle(State(app): S, UrlPath((id, file)): UrlPath<(String, Stri
 }
 
 async fn plugin_del(State(app): S, UrlPath((id, file)): UrlPath<(String, String)>) -> Result<StatusCode, Err> {
-    let (dir, _) = mc_plugins(&app, &id).await?;
+    let (dir, ..) = mc_plugins(&app, &id).await?;
     if !games::plugin_file_ok(&file) {
         return Err((StatusCode::BAD_REQUEST, "fichier invalide".into()));
     }
@@ -648,12 +703,7 @@ async fn start_inner(app: &Arc<App>, id: &str) -> Result<()> {
     }
     if s.game == Game::Minecraft {
         // installe la version choisie si elle manque (changée dans les réglages)
-        let app2 = app.clone();
-        let id2 = id.to_string();
-        let log = move |m: String| {
-            let (app3, id3) = (app2.clone(), id2.clone());
-            tokio::spawn(async move { if let Some(l) = app3.live.lock().await.get_mut(&id3) { l.push(format!("[foyer] {m}")) } });
-        };
+        let log = logger(app, id);
         games::java(&app.data, s.java, &log).await?;
     }
     let (exe, args, cwd) = games::command(s.game, &app.data, &dir, s.port, s.ram_mb, s.java, s.txadmin).await?;

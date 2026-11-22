@@ -9,7 +9,7 @@
   import ServerProperties from './ServerProperties.svelte'
   import ServerPlugins from './ServerPlugins.svelte'
   import ServerSoon from './ServerSoon.svelte'
-  import { GAMES, STATUS, type Conn, type Server } from './api'
+  import { GAMES, SOFTWARE, STATUS, software, type Conn, type Server } from './api'
 
   let { conn, server, address, onback, onaction, ondelete }: {
     conn: Conn
@@ -21,13 +21,14 @@
   } = $props()
 
   const mc = $derived(server.game === 'minecraft')
+  const addons = $derived(mc ? SOFTWARE[software(server).id].addons : null)
   const tabs = $derived([
     { id: 'console', label: 'Console', icon: Terminal },
     { id: 'general', label: 'Général', icon: SlidersHorizontal },
     { id: 'network', label: 'Réseau', icon: Network },
     { id: 'version', label: 'Version', icon: Package },
     mc ? { id: 'properties', label: 'Propriétés', icon: FileCog } : { id: 'fivem', label: 'FiveM', icon: KeyRound },
-    ...(mc ? [{ id: 'plugins', label: 'Plugins', icon: Puzzle }] : []),
+    ...(addons ? [{ id: 'plugins', label: addons === 'mods' ? 'Mods' : 'Plugins', icon: Puzzle }] : []),
     { id: 'players', label: 'Joueurs', icon: Users, soon: true },
     { id: 'files', label: 'Fichiers', icon: FolderOpen, soon: true },
     { id: 'backups', label: 'Sauvegardes', icon: Archive, soon: true },

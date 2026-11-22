@@ -160,10 +160,34 @@ export function host(c: Conn) {
 }
 
 export const GAMES: Record<Game, { label: string; hint: string; port: number; min: string; cats: string[]; soon?: boolean }> = {
-  minecraft: { label: 'Minecraft', hint: 'Java Edition, serveur Paper', port: 25565, min: '1 cœur · 1 Go RAM · 5 Go disque', cats: ['Survie', 'Bac à sable'] },
+  minecraft: { label: 'Minecraft', hint: 'Java Edition', port: 25565, min: '1 cœur · 1 Go RAM · 5 Go disque', cats: ['Survie', 'Bac à sable'] },
   fivem: { label: 'FiveM', hint: 'GTA V roleplay, ESX ou QBCore', port: 30120, min: '1 cœur · 2 Go RAM · 10 Go disque', cats: ['Jeu de rôle'], soon: true },
   valheim: { label: 'Valheim', hint: 'Survie viking en coopération', port: 2456, min: '2 cœurs · 4 Go RAM · 2 Go disque', cats: ['Survie', 'Coopération'], soon: true },
   terraria: { label: 'Terraria', hint: 'Aventure 2D, serveur TShock', port: 7777, min: '1 cœur · 512 Mo RAM · 500 Mo disque', cats: ['Aventure', 'Bac à sable'], soon: true },
+}
+
+export type Software = 'vanilla' | 'paper' | 'purpur' | 'fabric' | 'forge' | 'neoforge'
+
+/** Logiciels serveur Minecraft. addons : dossier des extensions, null si aucune. */
+export const SOFTWARE: Record<Software, { label: string; hint: string; addons: 'plugins' | 'mods' | null }> = {
+  vanilla: { label: 'Vanilla', hint: 'Le jeu officiel de Mojang', addons: null },
+  paper: { label: 'Paper', hint: 'Plugins, plus rapide', addons: 'plugins' },
+  purpur: { label: 'Purpur', hint: 'Plugins, plus de réglages que Paper', addons: 'plugins' },
+  fabric: { label: 'Fabric', hint: 'Mods légers et récents', addons: 'mods' },
+  forge: { label: 'Forge', hint: 'Mods, gros modpacks', addons: 'mods' },
+  neoforge: { label: 'NeoForge', hint: 'Mods, suite de Forge', addons: 'mods' },
+}
+
+/** « NeoForge 1.21.1 » → { id: 'neoforge', mc: '1.21.1' }. Sans version : Paper, comme l'agent. */
+export function software(s: Server): { id: Software; mc: string } {
+  const [name, mc = ''] = (s.version ?? '').split(' ')
+  const id = name.toLowerCase() as Software
+  return { id: id in SOFTWARE ? id : 'paper', mc }
+}
+
+/** Compare deux versions numérotées (1.9 < 1.21 < 26.3). */
+export function cmpVersion(a: string, b: string) {
+  return a.localeCompare(b, 'en', { numeric: true })
 }
 
 export const STATUS: Record<Status, string> = {

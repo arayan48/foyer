@@ -2,12 +2,15 @@
   import { Puzzle, Search, Download, Trash2, Sparkles, ChevronLeft, ChevronRight, ExternalLink, Heart, Clock, Check } from 'lucide-svelte'
   import SubPages from './SubPages.svelte'
   import Confirm from './Confirm.svelte'
-  import { call, bytes, type Conn, type Server } from './api'
+  import { SOFTWARE, call, bytes, software, type Conn, type Server } from './api'
 
   let { conn, server }: { conn: Conn; server: Server } = $props()
   type Plugin = { file: string; enabled: boolean; size: number }
   type Hit = { id: string; slug?: string; title: string; description: string; author: string; downloads: number; follows: number; updated: string; icon: string | null; categories?: string[] }
 
+  const sw = software(server)
+  const folder = SOFTWARE[sw.id].addons ?? 'plugins'
+  const word = folder === 'mods' ? 'mod' : 'plugin'
   const base = `/api/servers/${server.id}/plugins`
   const pages = [
     { id: 'installed', label: 'Installés', icon: Puzzle },
@@ -176,18 +179,18 @@
   {/if}
 {/snippet}
 
-<SubPages {pages} bind:page label="Plugins" {onselect}>
+<SubPages {pages} bind:page label={folder === 'mods' ? 'Mods' : 'Plugins'} {onselect}>
   {#if error}<p class="err" role="alert">{error}</p>{/if}
 
   {#if page === 'installed'}
-    <h2>Plugins installés</h2>
-    <p class="lead">Dossier <code>plugins</code> du serveur. Les changements comptent au prochain redémarrage.</p>
+    <h2>{folder === 'mods' ? 'Mods' : 'Plugins'} installés</h2>
+    <p class="lead">Dossier <code>{folder}</code> du serveur. Les changements comptent au prochain redémarrage.</p>
     {#if list === null}
       <p class="muted">Chargement…</p>
     {:else if list.length === 0}
       <div class="empty">
         <Puzzle size={22} />
-        <p>Aucun plugin pour l'instant.</p>
+        <p>Aucun {word} pour l'instant.</p>
         <button class="btn primary" onclick={() => { page = 'add'; onselect() }}><Download size={14} /> Parcourir le catalogue</button>
       </div>
     {:else}
@@ -208,9 +211,9 @@
     {/if}
 
   {:else if page === 'add'}
-    <h2>Ajouter un plugin</h2>
-    <p class="lead">Catalogue Modrinth, filtré pour Paper{server.version ? ` et ${server.version.replace('Paper ', 'Minecraft ')}` : ''}.</p>
-    {@render browser(ps, searchPlugins, PLUGIN_CATS, 'EssentialsX, LuckPerms, WorldEdit…', false)}
+    <h2>Ajouter un {word}</h2>
+    <p class="lead">Catalogue Modrinth, filtré pour {SOFTWARE[sw.id].label}{sw.mc ? ` et Minecraft ${sw.mc}` : ''}.</p>
+    {@render browser(ps, searchPlugins, PLUGIN_CATS, folder === 'mods' ? 'Lithium, Fabric API, Create…' : 'EssentialsX, LuckPerms, WorldEdit…', false)}
 
   {:else if page === 'shaders'}
     <h2>Shaders</h2>
@@ -219,7 +222,7 @@
   {/if}
 </SubPages>
 
-<Confirm bind:open={askDelete} title="Supprimer {toDelete ? name(toDelete.file) : ''} ?" text="Le fichier est retiré du dossier plugins. Ses réglages restent, tu pourras le réinstaller." onconfirm={() => toDelete && remove(toDelete)} />
+<Confirm bind:open={askDelete} title="Supprimer {toDelete ? name(toDelete.file) : ''} ?" text="Le fichier est retiré du dossier {folder}. Ses réglages restent, tu pourras le réinstaller." onconfirm={() => toDelete && remove(toDelete)} />
 
 <style>
   .err { color: var(--err); margin-bottom: 12px; }
