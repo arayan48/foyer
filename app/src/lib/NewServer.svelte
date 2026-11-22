@@ -1,7 +1,13 @@
 <script lang="ts">
-  import { ArrowLeft } from 'lucide-svelte'
-  import GameMark from './GameMark.svelte'
+  import { ArrowLeft, Check, Search } from 'lucide-svelte'
   import { GAMES, call, type Catalog, type Conn, type Game, type Server } from './api'
+
+  // affiches officielles, © leurs éditeurs (mêmes fichiers que le site)
+  import minecraft from '../assets/games/minecraft.webp'
+  import fivem from '../assets/games/fivem.webp'
+  import valheim from '../assets/games/valheim.webp'
+  import terraria from '../assets/games/terraria.webp'
+  const POSTERS: Record<Game, string> = { minecraft, fivem, valheim, terraria }
 
   let { conn, servers, oncreated, oncancel }: {
     conn: Conn
@@ -11,6 +17,15 @@
   } = $props()
 
   let game = $state<Game>('minecraft')
+  let query = $state('')
+  let cat = $state('') // vide = tous
+  const games = Object.entries(GAMES) as [Game, (typeof GAMES)[Game]][]
+  const cats = [...new Set(games.flatMap(([, g]) => g.cats))]
+  // sans accents ni majuscules
+  const fold = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+  let shown = $derived(
+    games.filter(([, g]) => (!cat || g.cats.includes(cat)) && fold([g.label, g.hint, ...g.cats].join(' ')).includes(fold(query.trim()))),
+  )
   let name = $state('')
   let ram = $state(4)
   let eula = $state(false)
@@ -62,7 +77,9 @@
   let step = $state(0)
   let current = $derived(steps[Math.min(step, steps.length - 1)])
   let last = $derived(step >= steps.length - 1)
-  let canNext = $derived(current !== 'Framework' || keyOk)
+  let canNext = $derived(
+    current === 'Jeu' ? shown.some(([k]) => k === game) : current !== 'Framework' || keyOk,
+  )
   const fwLabel: Record<string, string> = { vanilla: 'Vanilla', esx: 'ESX Legacy', qbcore: 'QBCore' }
 
   function back() {
@@ -105,27 +122,44 @@
   <h1>Nouveau serveur</h1>
 </header>
 
-<div class="steps">
+<div class="steps" class:wide={current === 'Jeu'}>
   <div class="steps-label"><span>{current}</span><span class="steps-count">{step + 1} / {steps.length}</span></div>
   <div class="track" role="progressbar" aria-label="Progression" aria-valuemin="1" aria-valuemax={steps.length} aria-valuenow={step + 1} aria-valuetext={`Étape ${step + 1} sur ${steps.length} : ${current}`}>
     <div class="fill" style:width={`${((step + 1) / steps.length) * 100}%`}></div>
   </div>
 </div>
 
-<form onsubmit={submit}>
+<form onsubmit={submit} class:wide={current === 'Jeu'}>
   {#if current === 'Jeu'}
-    <fieldset>
-      <legend>Quel jeu ?</legend>
-      <div class="games">
-        {#each Object.entries(GAMES) as [key, g]}
-          <label class="game" class:on={game === key} class:off={g.soon}>
-            <input type="radio" name="game" value={key} bind:group={game} disabled={g.soon} />
-            <GameMark game={key as Game} size={44} />
-            <span><strong>{g.label}{#if g.soon} <span class="soon">Bientôt</span>{/if}</strong><small>{g.hint}</small><small class="min" title="Configuration minimale du serveur">Mini : {g.min}</small></span>
-          </label>
+    <div class="bar">
+      <div class="cats" role="group" aria-label="Catégories">
+        {#each ['', ...cats] as c}
+          <button type="button" class="cat" aria-pressed={cat === c} onclick={() => (cat = c)}>{c || 'Tous'}</button>
         {/each}
       </div>
-    </fieldset>
+      <div class="search">
+        <Search size={14} />
+        <input class="input" type="search" placeholder="Rechercher" bind:value={query} aria-label="Rechercher un jeu" spellcheck="false" onkeydown={(e) => e.key === 'Enter' && e.preventDefault()} />
+      </div>
+    </div>
+    {#if shown.length}
+      <fieldset class="posters" aria-label="Jeu">
+        {#each shown as [key, g] (key)}
+          <label class="poster" class:on={game === key} class:off={g.soon}>
+            <input type="radio" name="game" value={key} bind:group={game} disabled={g.soon} />
+            <span class="art">
+              <img src={POSTERS[key]} alt="" draggable="false" />
+              {#if g.soon}<span class="tag">Bientôt</span>{:else if game === key}<span class="tick"><Check size={14} strokeWidth={3} /></span>{/if}
+            </span>
+            <strong>{g.label}</strong>
+            <small>{g.hint}</small>
+            <small class="min" title="Configuration minimale du serveur">{g.min}</small>
+          </label>
+        {/each}
+      </fieldset>
+    {:else}
+      <div class="empty"><Search size={20} /><p>Aucun jeu trouvé.</p></div>
+    {/if}
   {:else if current === 'Version'}
     {#if catalogError}<p class="note">Liste des versions indisponible ({catalogError}). Les choix par défaut seront utilisés.</p>{/if}
     {#if game === 'minecraft'}
@@ -252,8 +286,6 @@
   .game.on strong { color: var(--primary); }
   .game input { position: absolute; opacity: 0; pointer-events: none; }
   .game:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--r); }
-  .game .min { font-size: 0.78rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
-  .game.off, .game.off:hover { opacity: 0.35; cursor: not-allowed; }
   .game > span { display: grid; }
   .game small { color: var(--muted); font-size: 0.85rem; }
   .steps { margin: 0 0 24px; display: grid; gap: 8px; max-width: 560px; }
@@ -262,6 +294,33 @@
   .track { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
   .fill { height: 100%; border-radius: inherit; background: var(--primary); transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
   @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+  .wide { max-width: 860px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+  .cats { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cat { height: 1.9rem; padding: 0 0.8rem; border-radius: 999px; border: 1px solid var(--line-soft); background: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; transition: background 120ms, color 120ms, border-color 120ms; }
+  .cat:hover { color: var(--ink); background: var(--surface); }
+  .cat[aria-pressed='true'] { background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 40%, transparent); color: var(--primary); }
+  .search { position: relative; width: 180px; }
+  .search :global(svg) { position: absolute; left: 11px; top: 50%; translate: 0 -50%; color: var(--faint); pointer-events: none; }
+  .search .input { width: 100%; height: 2rem; padding-left: 32px; font-size: 0.89rem; }
+  .posters { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+  .poster { position: relative; display: flex; flex-direction: column; cursor: pointer; }
+  .poster input { position: absolute; opacity: 0; pointer-events: none; }
+  .art { position: relative; aspect-ratio: 2 / 3; margin-bottom: 10px; border-radius: var(--r); overflow: hidden; outline: 2px solid transparent; outline-offset: 3px; transition: outline-color 150ms var(--ease); }
+  .art img { display: block; width: 100%; height: 100%; object-fit: cover; transition: scale 250ms var(--ease), filter 150ms; }
+  .poster:not(.off):hover img { scale: 1.04; }
+  .poster:not(.off):hover .art { outline-color: var(--line); }
+  .poster.on .art, .poster:has(input:focus-visible) .art { outline-color: var(--primary); }
+  .poster:has(input:focus-visible) .art { outline-width: 3px; }
+  .poster.off { cursor: not-allowed; }
+  .poster.off img { filter: grayscale(0.75) brightness(0.6); }
+  .poster.off strong { color: var(--muted); }
+  .poster.on strong { color: var(--primary); }
+  .poster small { color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+  .poster .min { margin-top: 4px; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+  .tag { position: absolute; top: 10px; left: 10px; padding: 2px 9px; border-radius: 999px; background: rgb(26 24 23 / 0.85); color: #f5ead8; font-size: 0.75rem; font-weight: 500; }
+  .tick { position: absolute; bottom: 10px; right: 10px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: var(--primary-ink); }
+  .empty { display: grid; justify-items: center; gap: 10px; padding: 40px 16px; border: 1px dashed var(--line); border-radius: var(--r-lg); color: var(--muted); }
   .recap { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; padding: 12px 2px; border: 0; border-radius: 0; background: none; }
   .recap dt { color: var(--muted); }
   .recap dd { margin: 0; }

@@ -159,11 +159,11 @@ export function host(c: Conn) {
   return new URL(c.url).hostname
 }
 
-export const GAMES: Record<Game, { label: string; hint: string; port: number; min: string; soon?: boolean }> = {
-  minecraft: { label: 'Minecraft', hint: 'Java Edition, serveur Paper', port: 25565, min: '1 cœur · 1 Go RAM · 5 Go disque' },
-  fivem: { label: 'FiveM', hint: 'GTA V roleplay, ESX ou QBCore', port: 30120, min: '1 cœur · 2 Go RAM · 10 Go disque', soon: true },
-  valheim: { label: 'Valheim', hint: 'Survie viking en coopération', port: 2456, min: '2 cœurs · 4 Go RAM · 2 Go disque', soon: true },
-  terraria: { label: 'Terraria', hint: 'Aventure 2D, serveur TShock', port: 7777, min: '1 cœur · 512 Mo RAM · 500 Mo disque', soon: true },
+export const GAMES: Record<Game, { label: string; hint: string; port: number; min: string; cats: string[]; soon?: boolean }> = {
+  minecraft: { label: 'Minecraft', hint: 'Java Edition, serveur Paper', port: 25565, min: '1 cœur · 1 Go RAM · 5 Go disque', cats: ['Survie', 'Bac à sable'] },
+  fivem: { label: 'FiveM', hint: 'GTA V roleplay, ESX ou QBCore', port: 30120, min: '1 cœur · 2 Go RAM · 10 Go disque', cats: ['Jeu de rôle'], soon: true },
+  valheim: { label: 'Valheim', hint: 'Survie viking en coopération', port: 2456, min: '2 cœurs · 4 Go RAM · 2 Go disque', cats: ['Survie', 'Coopération'], soon: true },
+  terraria: { label: 'Terraria', hint: 'Aventure 2D, serveur TShock', port: 7777, min: '1 cœur · 512 Mo RAM · 500 Mo disque', cats: ['Aventure', 'Bac à sable'], soon: true },
 }
 
 export const STATUS: Record<Status, string> = {
