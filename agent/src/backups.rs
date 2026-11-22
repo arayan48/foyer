@@ -56,7 +56,7 @@ async fn tar(args: &[&std::ffi::OsStr], tolerate_changes: bool) -> Result<()> {
 }
 
 /// Archive un serveur que personne d'autre ne modifie (arrêté, ou monde figé par `freeze`).
-pub async fn create(app: &App, id: &str, reason: &str, auto: bool, hot: bool) -> Result<()> {
+pub async fn create(app: &App, id: &str, reason: &str, auto: bool, hot: bool) -> Result<Backup> {
     let s = app.servers.lock().await.iter().find(|s| s.id == id).cloned().ok_or_else(|| anyhow!("serveur inconnu"))?;
     let from = app.data.join("servers").join(id);
     let dir = folder(&app.data, id);
@@ -85,7 +85,7 @@ pub async fn create(app: &App, id: &str, reason: &str, auto: bool, hot: bool) ->
     for old in all(&dir).await.iter().filter(|b| b.auto).skip(KEEP_AUTO) {
         erase(&dir, old.id).await.ok();
     }
-    Ok(())
+    Ok(b)
 }
 
 async fn command(app: &App, id: &str, cmd: &str) -> Result<()> {
@@ -172,7 +172,7 @@ pub async fn add(State(app): S, UrlPath(id): UrlPath<String>) -> Result<StatusCo
         if hot && mc {
             command(&app, &id, "save-on").await.ok();
         }
-        release(&app, &id, r.map(|()| "Sauvegarde terminée.".into())).await;
+        release(&app, &id, r.map(|_| "Sauvegarde terminée.".into())).await;
     });
     Ok(StatusCode::NO_CONTENT)
 }
@@ -197,14 +197,14 @@ pub async fn restore(State(app): S, UrlPath((id, b)): UrlPath<(String, u64)>) ->
     let b = find(&app, &id, b).await?;
     claim(&app, &id, false).await?;
     tokio::spawn(async move {
-        let r = put_back(&app, &id, &b).await;
+        let r = put_back(&app, &id, &b, true).await;
         release(&app, &id, r.map(|()| "Sauvegarde restaurée.".into())).await;
     });
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Extrait à côté, sauvegarde l'état actuel, puis échange les dossiers.
-async fn put_back(app: &Arc<App>, id: &str, b: &Backup) -> Result<()> {
+/// Extrait à côté, sauvegarde l'état actuel si `keep`, puis échange les dossiers.
+pub async fn put_back(app: &Arc<App>, id: &str, b: &Backup, keep: bool) -> Result<()> {
     let log = logger(app, id);
     let dir = folder(&app.data, id);
     let live = app.data.join("servers").join(id);
@@ -223,8 +223,10 @@ async fn put_back(app: &Arc<App>, id: &str, b: &Backup) -> Result<()> {
             tokio::fs::write(&file, games::set_props(&text, &[("server-port", &p), ("query.port", &p)])).await?;
         }
         if live.exists() {
-            log("Sauvegarde de l'état actuel…".into());
-            create(app, id, "Avant restauration", true, false).await?;
+            if keep {
+                log("Sauvegarde de l'état actuel…".into());
+                create(app, id, "Avant restauration", true, false).await?;
+            }
             move_dir(&live, &old).await.context("un fichier du serveur est ouvert ailleurs")?;
         }
         if let Err(e) = move_dir(&new, &live).await {
@@ -314,20 +316,29 @@ mod tests {
             sv[0].version = Some("Vanilla 26.3".into());
             sv[0].java = 25;
         }
-        put_back(&app, "abc", &b).await.unwrap();
+        put_back(&app, "abc", &b, true).await.unwrap();
         assert_eq!(std::fs::read_to_string(dir.join("world/niveau é")).unwrap(), "bon");
         assert!(dir.join("plugins/p/logs/y").exists() && !dir.join("world/session.lock").exists() && !bdir.join("old").exists() && !bdir.join("restore").exists());
         assert!(std::fs::read_to_string(dir.join("server.properties")).unwrap().contains("server-port=25570"));
         assert_eq!(app.servers.lock().await[0].version.as_deref(), Some("Paper 1.10.2"));
         // l'état cassé est récupérable
         let undo = all(&bdir).await.into_iter().find(|b| b.auto).unwrap();
-        put_back(&app, "abc", &undo).await.unwrap();
+        put_back(&app, "abc", &undo, true).await.unwrap();
         assert_eq!(std::fs::read_to_string(dir.join("world/niveau é")).unwrap(), "cassé");
         assert_eq!(app.servers.lock().await[0].java, 25);
 
+        // sans `keep` : l'état actuel n'est pas sauvegardé
+        let n = all(&bdir).await.len();
+        std::fs::write(dir.join("world/niveau é"), "à moitié installé").unwrap();
+        std::fs::write(dir.join("reste.jar"), "x").unwrap();
+        put_back(&app, "abc", &undo, false).await.unwrap();
+        assert_eq!(std::fs::read_to_string(dir.join("world/niveau é")).unwrap(), "cassé");
+        assert!(!dir.join("reste.jar").exists());
+        assert_eq!(all(&bdir).await.len(), n);
+
         // archive abîmée : rien ne bouge
         std::fs::write(bdir.join(format!("{}.tar.gz", b.id)), "rien").unwrap();
-        assert!(put_back(&app, "abc", &b).await.is_err());
+        assert!(put_back(&app, "abc", &b, true).await.is_err());
         assert_eq!(std::fs::read_to_string(dir.join("world/niveau é")).unwrap(), "cassé");
 
         // automatiques limitées, manuelle gardée

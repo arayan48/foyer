@@ -47,7 +47,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [x] **P1** Gestionnaire de fichiers : parcourir, éditer, envoyer, télécharger, supprimer
 - [x] **P1** Sauvegardes : manuelle, restauration en un clic, rétention (5 automatiques)
 - [ ] **P1** Sauvegardes planifiées
-- [x] **P2** Sauvegarde avant chaque changement de version du jeu
+- [x] **P2** Sauvegarde avant chaque changement de version du jeu, retour automatique si l'installation échoue
 - [x] **P2** Corbeille : la suppression d'un serveur passe par une archive au lieu d'effacer direct (30 jours)
 - [ ] **P3** Envoi des sauvegardes sur le HDD 300 Go, un NAS ou le cloud
 

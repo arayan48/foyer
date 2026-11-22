@@ -378,11 +378,19 @@ async fn software_set(State(app): S, UrlPath(id): UrlPath<String>, Json(b): Json
         let dir = app.data.join("servers").join(&id);
         let log = logger(&app, &id);
         let r = async {
+            let mut before = None;
             if dir.exists() {
                 log("Sauvegarde avant le changement…".into());
-                backups::create(&app, &id, &format!("Avant {} {}", b.software.label(), b.version), true, false).await?;
+                before = Some(backups::create(&app, &id, &format!("Avant {} {}", b.software.label(), b.version), true, false).await?);
             }
-            software::install(b.software, &app.data, &dir, Some(&b.version), Some(java), &log).await
+            let r = software::install(b.software, &app.data, &dir, Some(&b.version), Some(java), &log).await;
+            let (Err(e), Some(before)) = (&r, before) else { return r };
+            log("L'installation a échoué, retour à l'état d'avant…".into());
+            let done = match backups::put_back(&app, &id, &before, false).await {
+                Ok(()) => "tout a été remis comme avant".to_string(),
+                Err(x) => format!("retour arrière impossible ({x:#}), restaure la sauvegarde à la main"),
+            };
+            Err(anyhow::anyhow!("{e:#} ; {done}"))
         }
         .await;
         if let Ok(v) = &r {
