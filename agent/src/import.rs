@@ -1,21 +1,28 @@
-//! Import d'un serveur Minecraft existant : logiciel, version, port et RAM devinés depuis ses fichiers.
+//! Import d'un serveur existant : jeu, logiciel, version, port et RAM devinés depuis ses fichiers.
+//! Seul Minecraft est reconnu pour l'instant ; chaque jeu ajouté complète `SUPPORTED` et `detect`.
+use crate::games::Game;
 use crate::software::{self, Software};
 use serde::Serialize;
 use std::path::Path;
 
 #[derive(Serialize, Default, Debug, PartialEq)]
 pub struct Found {
+    pub game: Option<Game>,
     pub software: Option<Software>,
     pub version: Option<String>,
     pub port: Option<u16>,
     pub ram_mb: Option<u32>,
 }
 
+/// Jeux dont Foyer sait reprendre un serveur existant.
+pub const SUPPORTED: &[Game] = &[Game::Minecraft];
+
 pub fn detect(dir: &Path) -> Found {
     let (software, version) = soft(dir);
-    let props = std::fs::read_to_string(dir.join("server.properties")).unwrap_or_default();
-    let port = props.lines().find_map(|l| l.strip_prefix("server-port=")).and_then(|p| p.trim().parse().ok());
-    Found { software, version, port, ram_mb: ram(dir) }
+    let props = std::fs::read_to_string(dir.join("server.properties")).ok();
+    let port = props.as_deref().unwrap_or_default().lines().find_map(|l| l.strip_prefix("server-port=")).and_then(|p| p.trim().parse().ok());
+    let game = (software.is_some() || props.is_some()).then_some(Game::Minecraft);
+    Found { game, software, version, port, ram_mb: ram(dir) }
 }
 
 /// Noms des sous-dossiers, triés.
@@ -116,7 +123,7 @@ mod tests {
         std::fs::create_dir_all(d.join("libraries/net/neoforged/neoforge/21.1.77")).unwrap();
         std::fs::write(d.join("server.properties"), "motd=x\nserver-port=25570\n").unwrap();
         std::fs::write(d.join("user_jvm_args.txt"), "# -Xmx4G\n-Xmx10G\n").unwrap();
-        assert_eq!(detect(&d), Found { software: Some(Software::Neoforge), version: Some("1.21.1".into()), port: Some(25570), ram_mb: Some(10240) });
+        assert_eq!(detect(&d), Found { game: Some(Game::Minecraft), software: Some(Software::Neoforge), version: Some("1.21.1".into()), port: Some(25570), ram_mb: Some(10240) });
     }
 
     #[test]

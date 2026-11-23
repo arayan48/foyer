@@ -455,6 +455,9 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     if n.game == Game::Minecraft && !n.eula {
         return bad("Il faut accepter l'EULA de Minecraft");
     }
+    if n.setup.import.as_deref().is_some_and(|f| !f.trim().is_empty()) && !import::SUPPORTED.contains(&n.game) {
+        return bad("L'import n'est pas encore disponible pour ce jeu");
+    }
     let port = n.port.unwrap_or(n.game.default_port());
     let ram_mb = n.ram_mb.unwrap_or(4096).clamp(512, 65536);
     let mut servers = app.servers.lock().await;
@@ -503,7 +506,8 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
                 }
                 None => None,
             };
-            let v = match setup.import.clone().filter(|f| !f.trim().is_empty() && s2.game == Game::Minecraft) {
+            let v = match setup.import.clone().filter(|f| !f.trim().is_empty()) {
+                // un seul jeu importable pour l'instant ; les suivants auront leur propre branche ici
                 Some(from) => import_into(&app2, from.trim(), &dir, &tmp, s2.port, &mut setup, &log).await?,
                 None => games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await?,
             };
@@ -578,7 +582,7 @@ async fn export(State(app): S, UrlPath(id): UrlPath<String>) -> Result<axum::res
 #[derive(Deserialize)]
 struct From { from: String }
 
-/// Devine logiciel, version, port et RAM d'un serveur existant sur cette machine. Rien pour un lien.
+/// Devine jeu, logiciel, version, port et RAM d'un serveur existant sur cette machine. Rien pour un lien.
 async fn import_detect(State(app): S, Json(b): Json<From>) -> Result<Json<import::Found>, Err> {
     let p = local_source(&app, &b.from)?.filter(|p| p.is_dir());
     Ok(Json(tokio::task::spawn_blocking(move || p.map(|p| import::detect(&p)).unwrap_or_default()).await.unwrap_or_default()))

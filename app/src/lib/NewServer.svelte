@@ -157,16 +157,18 @@
     else step--
   }
 
-  // import d'un serveur Minecraft existant : dossier sur la machine du serveur ou lien d'un .zip
+  // import d'un serveur existant (Minecraft seulement pour l'instant) : dossier sur la machine du serveur ou lien d'un .zip
   let importing = $state(false)
   let from = $state('')
-  let found = $state<{ software?: Software; version?: string; port?: number; ram_mb?: number } | null>(null)
+  let found = $state<{ game?: Game; software?: Software; version?: string; port?: number; ram_mb?: number } | null>(null)
   let impSw = $state<Software | ''>('')
   let impVersion = $state('')
   let analysing = $state(false)
+  // un lien n'est pas analysé avant l'installation : Minecraft par défaut tant qu'il est le seul jeu importable
+  let impGame = $derived<Game>(found?.game ?? 'minecraft')
   let impPort = $derived.by(() => {
     const used = new Set(servers.flatMap((s) => [s.port, s.admin_port]))
-    let p = found?.port ?? 25565
+    let p = found?.port ?? GAMES[impGame].port
     while (used.has(p)) p++
     return p
   })
@@ -189,7 +191,7 @@
     try {
       const s = await call<Server>(conn, '/api/servers', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim() || 'minecraft-importe', game: 'minecraft', port: impPort, ram_mb: ram * 1024, eula, import: from.trim(), software: impSw || undefined, version: impVersion.trim() || undefined }),
+        body: JSON.stringify({ name: name.trim() || `${impGame}-importe`, game: impGame, port: impPort, ram_mb: ram * 1024, eula, import: from.trim(), software: impSw || undefined, version: impVersion.trim() || undefined }),
       })
       oncreated(s)
     } catch (err) { error = (err as Error).message } finally { busy = false }
@@ -232,7 +234,7 @@
 <header>
   <button class="btn icon" onclick={back} aria-label="Retour"><ArrowLeft size={16} /></button>
   <h1>{importing ? 'Importer un serveur' : 'Nouveau serveur'}</h1>
-  {#if !importing}<button class="btn imp" onclick={() => ((importing = true), (error = ''))}>Importer un serveur Minecraft</button>{/if}
+  {#if !importing}<button class="btn imp" onclick={() => ((importing = true), (error = ''))}>Importer un serveur</button>{/if}
 </header>
 
 {#if importing}
@@ -245,7 +247,10 @@
     </div>
     <small>Dossier ou archive (.zip, .tar.gz) sur la machine du serveur, ou lien https. L'original n'est pas modifié.</small>
   </label>
-  {#if found}
+  {#if found && !found.game && !from.trim().startsWith('https://')}
+    <p class="note">Aucun serveur reconnu dans ce dossier. Seul Minecraft s'importe pour l'instant.</p>
+  {:else if found}
+    {#if impGame === 'minecraft'}
     {#if from.trim().startsWith('https://') && !found.software}<p class="note">Le contenu d'un lien n'est analysé qu'à l'installation. Laisse « Détecter » ou choisis toi-même.</p>{/if}
     <label class="field">
       <span>Logiciel</span>
@@ -258,6 +263,7 @@
       <span>Version de Minecraft</span>
       <input class="input" bind:value={impVersion} placeholder="Détecter à l'installation" spellcheck="false" />
     </label>
+    {/if}
     <label class="field">
       <span>Nom</span>
       <input class="input" bind:value={name} maxlength="60" placeholder="minecraft-importe" />
@@ -269,16 +275,18 @@
     <dl class="recap">
       <dt>Port</dt><dd>{impPort}{found.port && found.port !== impPort ? ` (${found.port} déjà pris)` : ''}</dd>
     </dl>
+    {#if impGame === 'minecraft'}
     <p class="note">Foyer réinstalle le logiciel serveur. Mondes, mods, plugins et réglages sont gardés.</p>
     <label class="check">
       <input type="checkbox" bind:checked={eula} required />
       <span>J'accepte le <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noreferrer">contrat de licence (EULA) de Minecraft</a>.</span>
     </label>
+    {/if}
   {/if}
   {#if error}<p class="err-text" role="alert">{error}</p>{/if}
   <div class="foot">
     <button type="button" class="btn" onclick={() => ((importing = false), (found = null), (error = ''))}>Annuler</button>
-    <button class="btn primary" disabled={busy || !found}>{busy ? 'Import…' : 'Importer'}</button>
+    <button class="btn primary" disabled={busy || !found || (!found.game && !from.trim().startsWith('https://'))}>{busy ? 'Import…' : 'Importer'}</button>
   </div>
 </form>
 {:else}
