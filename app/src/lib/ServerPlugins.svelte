@@ -59,7 +59,7 @@
   }
   const toggle = (p: Plugin) => run(p.file, () => call(conn, `${base}/${encodeURIComponent(p.file)}`, { method: 'PATCH', body: JSON.stringify({ enabled: !p.enabled }) }))
   const remove = (p: Plugin) => run(p.file, () => call(conn, `${base}/${encodeURIComponent(p.file)}`, { method: 'DELETE' }))
-  const install = (h: Hit) => run(h.id, () => call(conn, base, { method: 'POST', body: JSON.stringify({ project: h.id }) }))
+  const install = (h: Hit) => run(h.id, async () => { await call(conn, base, { method: 'POST', body: JSON.stringify({ project: h.id }) }); added = new Set(added).add(h.id) })
 
   async function searchPlugins() {
     ps.loading = true
@@ -98,7 +98,10 @@
     const days = Math.floor((Date.now() - new Date(d).getTime()) / 864e5)
     return days < 1 ? "aujourd'hui" : days < 30 ? `il y a ${days} j` : days < 365 ? `il y a ${Math.floor(days / 30)} mois` : `il y a ${Math.floor(days / 365)} an${days >= 730 ? 's' : ''}`
   }
-  const installed = (h: Hit) => list?.some((p) => name(p.file).toLowerCase().startsWith(h.title.toLowerCase().replace(/\s+/g, '')))
+  // le fichier ne garde pas l'id Modrinth : on compare titre et nom de fichier sans espaces ni tirets
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '')
+  let added = $state(new Set<string>())
+  const installed = (h: Hit) => added.has(h.id) || !!list?.some((p) => norm(name(p.file)).startsWith(norm(h.title)))
   const pageCount = (s: typeof ps) => Math.max(1, Math.min(Math.ceil(s.total / s.per), 500))
   // numéros affichés : 1 … 4 5 [6] 7 8 … 40
   function pageNums(cur: number, n: number) {
