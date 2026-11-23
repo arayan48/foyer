@@ -62,6 +62,43 @@
     }
   }
 
+  // mise à jour : dernière version du même logiciel, serveur arrêté puis relancé s'il tournait
+  let latest = $state<string | null>(null)
+  let upMsg = $state('')
+  let upBusy = $state(false)
+  let upAsk = $state(false)
+  const newer = $derived(!!latest && !!now.mc && cmpVersion(latest, now.mc) > 0)
+  async function checkLatest() {
+    upMsg = ''
+    try {
+      latest = (await call<Catalog['minecraft']>(conn, `/api/catalog/${now.id}`))[0]?.id ?? null
+    } catch (e) {
+      upMsg = `Vérification impossible : ${(e as Error).message}`
+    }
+  }
+  async function upgrade() {
+    if (!latest) return
+    upBusy = true
+    upMsg = ''
+    const was = !idle
+    try {
+      if (was) await call(conn, `/api/servers/${server.id}/stop`, { method: 'POST' })
+      await call(conn, `/api/servers/${server.id}/software`, { method: 'POST', body: JSON.stringify({ software: now.id, version: latest }) })
+      let st = 'installing'
+      for (let i = 0; i < 900 && st === 'installing'; i++) {
+        await new Promise((r) => setTimeout(r, 1000))
+        st = (await call<Server[]>(conn, '/api/servers')).find((s) => s.id === server.id)?.status ?? 'error'
+      }
+      if (st !== 'stopped') throw new Error('la mise à jour a échoué, voir la console')
+      if (was) await call(conn, `/api/servers/${server.id}/start`, { method: 'POST' })
+      upMsg = `Mis à jour en ${latest}.`
+    } catch (e) {
+      upMsg = (e as Error).message
+    } finally {
+      upBusy = false
+    }
+  }
+
   const pages = [
     { id: 'software', label: mc ? 'Logiciel' : 'Artefacts', icon: Package },
     ...(mc ? [{ id: 'install', label: 'Changer', icon: Download }] : []),
@@ -71,7 +108,7 @@
   let page = $state('software')
 </script>
 
-<SubPages {pages} bind:page label="Réglages de version" onselect={() => page === 'install' && !list && loadVersions()}>
+<SubPages {pages} bind:page label="Réglages de version" onselect={() => { if (page === 'install' && !list) loadVersions(); if (page === 'updates' && mc && !latest) checkLatest() }}>
   {#if page === 'software'}
     {#if mc}
       <h2>Logiciel serveur</h2>
@@ -134,16 +171,12 @@
     </form>
 
   {:else if page === 'updates'}
-    <h2>Mises à jour <span class="soon">Bientôt</span></h2>
+    <h2>Mises à jour{#if !mc} <span class="soon">Bientôt</span>{/if}</h2>
     <div class="card">
       <div class="row">
-        <div><strong>Mettre à jour maintenant</strong><small>Arrête le serveur, met à jour, puis le relance.</small></div>
-        <div class="val"><button class="btn" disabled><RefreshCw size={14} /> Mettre à jour</button></div>
+        <div><strong>Mettre à jour maintenant</strong><small>{upMsg || (!mc ? 'Arrête le serveur, met à jour, puis le relance.' : !latest ? 'Recherche de la dernière version…' : newer ? `${now.mc} → ${latest}. Sauvegarde avant, serveur relancé s'il tournait.` : `Déjà à jour (${now.mc}).`)}</small></div>
+        <div class="val"><button class="btn" disabled={!mc || !newer || upBusy || server.status === 'installing'} onclick={() => (upAsk = true)}><RefreshCw size={14} /> {upBusy ? 'Mise à jour…' : 'Mettre à jour'}</button></div>
       </div>
-      <label class="row">
-        <div><strong>Sauvegarder avant chaque mise à jour</strong><small>Pour revenir en arrière si ça casse.</small></div>
-        <input type="checkbox" class="switch" checked disabled />
-      </label>
     </div>
 
   {:else if page === 'rollback'}
@@ -159,6 +192,14 @@
     : 'Le monde et les réglages restent, mais un monde déjà créé peut mal supporter le changement. Le serveur est sauvegardé avant.'}
   action="Installer"
   onconfirm={install}
+/>
+
+<Confirm
+  bind:open={upAsk}
+  title="Passer en {latest} ?"
+  text="Le serveur est arrêté et sauvegardé, puis relancé s'il tournait. Un monde ouvert en {latest} ne peut plus revenir en {now.mc} sans la sauvegarde."
+  action="Mettre à jour"
+  onconfirm={upgrade}
 />
 
 <style>
