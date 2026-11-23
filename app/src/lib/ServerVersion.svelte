@@ -63,7 +63,11 @@
   }
 
   // mise à jour : dernière version du même logiciel, serveur arrêté puis relancé s'il tournait
-  let latest = $state<string | null>(null)
+  let cat = $state<string[] | null>(null)
+  let keep = $state(false) // rester sur sa version (1.21 → 1.21.x), seulement les correctifs
+  // ligne de version : 1.21.10 → 1.21, 26.3 → 26
+  const line = (v: string) => v.split('.').slice(0, v.startsWith('1.') ? 2 : 1).join('.')
+  const latest = $derived(cat && now.mc ? (keep ? cat.find((v) => line(v) === line(now.mc)) : cat[0]) ?? null : null)
   let upMsg = $state('')
   let upBusy = $state(false)
   let upAsk = $state(false)
@@ -71,7 +75,7 @@
   async function checkLatest() {
     upMsg = ''
     try {
-      latest = (await call<Catalog['minecraft']>(conn, `/api/catalog/${now.id}`))[0]?.id ?? null
+      cat = (await call<Catalog['minecraft']>(conn, `/api/catalog/${now.id}`)).map((v) => v.id)
     } catch (e) {
       upMsg = `Vérification impossible : ${(e as Error).message}`
     }
@@ -108,7 +112,7 @@
   let page = $state('software')
 </script>
 
-<SubPages {pages} bind:page label="Réglages de version" onselect={() => { if (page === 'install' && !list) loadVersions(); if (page === 'updates' && mc && !latest) checkLatest() }}>
+<SubPages {pages} bind:page label="Réglages de version" onselect={() => { if (page === 'install' && !list) loadVersions(); if (page === 'updates' && mc && !cat) checkLatest() }}>
   {#if page === 'software'}
     {#if mc}
       <h2>Logiciel serveur</h2>
@@ -174,9 +178,15 @@
     <h2>Mises à jour{#if !mc} <span class="soon">Bientôt</span>{/if}</h2>
     <div class="card">
       <div class="row">
-        <div><strong>Mettre à jour maintenant</strong><small>{upMsg || (!mc ? 'Arrête le serveur, met à jour, puis le relance.' : !latest ? 'Recherche de la dernière version…' : newer ? `${now.mc} → ${latest}. Sauvegarde avant, serveur relancé s'il tournait.` : `Déjà à jour (${now.mc}).`)}</small></div>
+        <div><strong>Mettre à jour maintenant</strong><small>{upMsg || (!mc ? 'Arrête le serveur, met à jour, puis le relance.' : !cat ? 'Recherche de la dernière version…' : newer ? `${now.mc} → ${latest}. Sauvegarde avant, serveur relancé s'il tournait.` : `Déjà à jour (${now.mc}).`)}</small></div>
         <div class="val"><button class="btn" disabled={!mc || !newer || upBusy || server.status === 'installing'} onclick={() => (upAsk = true)}><RefreshCw size={14} /> {upBusy ? 'Mise à jour…' : 'Mettre à jour'}</button></div>
       </div>
+      {#if mc && now.mc}
+        <label class="row">
+          <div><strong>Garder la version {line(now.mc)}</strong><small>Seulement les correctifs, sans passer à une nouvelle version de Minecraft.</small></div>
+          <input type="checkbox" class="switch" bind:checked={keep} disabled={upBusy} />
+        </label>
+      {/if}
     </div>
 
   {:else if page === 'rollback'}
