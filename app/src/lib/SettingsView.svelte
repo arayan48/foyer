@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { LogOut, RefreshCw, Cpu, AppWindow, Plug, Palette, Bell, Archive, Keyboard, Languages, Users, Info, Globe } from 'lucide-svelte'
+  import { LogOut, RefreshCw, Cpu, AppWindow, Plug, Palette, Bell, Archive, Keyboard, Languages, Users, Info, Globe, Copy, Check } from 'lucide-svelte'
   import GithubMark from './GithubMark.svelte'
   import SubPages from './SubPages.svelte'
   import { applySettings, loadSettings } from './settings'
-  import { bytes, type Conn, type Host } from './api'
+  import { bytes, call, type Conn, type Host } from './api'
 
   let { conn, sys, onlogout }: { conn: Conn; sys: Host | null; onlogout: () => void } = $props()
 
@@ -23,6 +23,18 @@
   ]
   let page = $state('app')
   const mac = navigator.userAgent.includes('Mac')
+
+  // identifiant à donner à une autre appli pour se connecter d'où qu'elle soit
+  let remoteId = $state<string | null>(null)
+  let idCopied = $state(false)
+  $effect(() => {
+    call<{ id: string | null }>(conn, '/api/remote').then((r) => (remoteId = r.id)).catch(() => {})
+  })
+  async function copyId() {
+    await navigator.clipboard.writeText(remoteId!)
+    idCopied = true
+    setTimeout(() => (idCopied = false), 1500)
+  }
 
   function since(sec = 0) {
     const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60)
@@ -97,6 +109,7 @@
         {#if sys.arch}<div class="row"><div><strong>Architecture</strong></div><div class="val">{sys.arch}</div></div>{/if}
         {#if sys.uptime != null}<div class="row"><div><strong>Allumée depuis</strong></div><div class="val num">{since(sys.uptime)}</div></div>{/if}
         <div class="row"><div><strong>Adresse de l'agent</strong></div><div class="val num">{conn.url}</div></div>
+        {#if remoteId}<div class="row"><div><strong>Identifiant de connexion</strong><small>À entrer dans Foyer pour se connecter depuis un autre réseau</small></div><div class="val"><span class="num id">{remoteId}</span><button class="btn icon" onclick={copyId} aria-label="Copier l'identifiant">{#if idCopied}<Check size={14} />{:else}<Copy size={14} />{/if}</button></div></div>{/if}
         {#if sys.agent}<div class="row"><div><strong>Version de l'agent</strong></div><div class="val num">{sys.agent}</div></div>{/if}
       </div>
       <h3>Matériel</h3>
@@ -221,4 +234,5 @@
   .hint { color: var(--muted); font-size: 0.85rem; margin-top: 8px; }
   kbd { display: inline-grid; place-items: center; min-width: 1.6rem; height: 1.6rem; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); font: inherit; font-size: 0.8rem; color: var(--ink); }
   a.btn { text-decoration: none; }
+  .id { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 0.8rem; word-break: break-all; }
 </style>

@@ -22,6 +22,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 playit-agent-core = { git = "https://github.com/playit-cloud/playit-agent", rev = "bddcbed" }
 playit-api-client = { git = "https://github.com/playit-cloud/playit-agent", rev = "bddcbed" }
 uuid = "1"
+iroh = "1.5"
 
 [profile.release]
 strip = true

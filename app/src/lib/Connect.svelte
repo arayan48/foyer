@@ -24,13 +24,16 @@
       .catch(() => {}) // hors Tauri ou agent arrêté : formulaire normal
   })
 
+  const unreachable = (u: string) =>
+    u.startsWith('foyer://') ? "Agent injoignable par son identifiant. Vérifie qu'il tourne et que la machine a accès à Internet." : `Agent injoignable à ${u}. Vérifie qu'il tourne et que le port est ouvert.`
+
   async function tryConn(c: Conn) {
     try {
       await call(c, '/api/system')
       onconnect(c)
     } catch (err) {
       pending = null
-      error = err instanceof AuthError ? err.message.startsWith('Jeton') ? 'Jeton incorrect.' : err.message : `Agent injoignable à ${c.url}. Vérifie qu'il tourne et que le port est ouvert.`
+      error = err instanceof AuthError ? err.message.startsWith('Jeton') ? 'Jeton incorrect.' : err.message : unreachable(c.url)
     }
   }
 
@@ -44,7 +47,7 @@
       c.fp = await probe(c.url)
       pending = c
     } catch {
-      error = `Agent injoignable à ${c.url}. Vérifie qu'il tourne et que le port est ouvert.`
+      error = unreachable(c.url)
     } finally {
       busy = false
     }
@@ -73,9 +76,9 @@
   <form class="form" onsubmit={submit}>
     <div class="mark"><Logo size={44} /></div>
     <h1>Connexion à un serveur</h1>
-    <p class="lead">Entre l'adresse de la machine où tourne l'agent Foyer, et son jeton.</p>
+    <p class="lead">Entre l'adresse de la machine où tourne l'agent Foyer, ou son identifiant pour s'y connecter depuis un autre réseau, et son jeton.</p>
     <label class="field">
-      <span>Adresse</span>
+      <span>Adresse ou identifiant</span>
       <input class="input" bind:value={url} placeholder="192.168.1.10" required autocomplete="off" spellcheck="false" />
     </label>
     <label class="field">

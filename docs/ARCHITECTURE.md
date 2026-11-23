@@ -41,6 +41,7 @@ Deux installeurs construits à partir de la même appli :
 | `players.rs` | joueurs Minecraft : présents, listes, commandes |
 | `journal.rs` | journal des actions (`actions.log`, 1 Mo puis `actions.log.1`) |
 | `trash.rs` | corbeille des serveurs supprimés |
+| `remote.rs` | accès à distance par identifiant (iroh, MIT/Apache-2.0) : clé dans `remote.key`, chaque flux QUIC (ALPN `foyer/1`) est relayé vers l'API locale ; connexion directe ou par relais, toujours chiffrée ; HTTPS, empreinte et jeton inchangés par-dessus |
 | `tunnel.rs` | accès depuis Internet par playit.gg : liaison du compte, un tunnel par serveur, tunnel exécuté dans l'agent (crates `playit-agent-core` et `playit-api-client`, BSD-2, épinglées au commit `bddcbed`) |
 | `build.rs` | icône Windows de l'exe |
 
@@ -49,6 +50,8 @@ Deux installeurs construits à partir de la même appli :
 token                 jeton (32 hex), créé au premier lancement
 cert.pem, key.pem      certificat auto-signé de l'agent, créé au premier lancement
 fingerprint           empreinte SHA-256 du certificat (à comparer à la connexion)
+remote.key            clé secrète iroh (l'identifiant en découle) ; la supprimer change l'identifiant
+remote-id             identifiant à donner à l'appli (64 hex)
 playit.json           clé de l'agent playit.gg et tunnel de chaque serveur (absent si non relié)
 servers.json          liste des serveurs (id, name, game, port, ram_mb, auto_start, auto_restart)
 runtime/java25/       Java Temurin 25 partagé (Minecraft)
@@ -82,6 +85,7 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | POST | `/api/servers/{id}/rules/{pvp\|command-blocks}/{true\|false}` | Minecraft 1.21.9 et plus : règle de jeu, retenue dans `foyer-rules.json` et remise à chaque démarrage |
 | GET | `/api/servers/{id}/rules` | valeurs connues de ces règles, suivies dans la console |
 | GET | `/api/journal` | 200 dernières actions `{at, ip, action, status}` : requêtes qui changent quelque chose et commandes console |
+| GET | `/api/remote` | `{id}` : identifiant de connexion à distance, `null` si l'écoute n'a pas démarré |
 | GET / DELETE | `/api/playit` | `{linked, status}` / délie : supprime les tunnels Foyer et oublie la clé |
 | POST / GET | `/api/playit/link` | lance la liaison, renvoie `{url}` à ouvrir / état : `waiting`, `done`, `rejected`, `expired`, `error` |
 | GET / POST / DELETE | `/api/servers/{id}/tunnel` | `{address, disabled}` ou `null` / crée le tunnel (Minecraft Java TCP, FiveM TCP+UDP) / le supprime ; recréé si le port change, supprimé avec le serveur |
@@ -126,7 +130,8 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 | `src/lib/GameMark.svelte` | pastille de jeu : bloc d'herbe dessiné pour Minecraft, logo FiveM (simple-icons, CC0) |
 | `src/app.css` | jetons de design (OKLCH, sombre, accent rose braise `oklch(0.72 0.18 357)`), boutons, champs |
 | `src-tauri/src/lib.rs` | plugins (updater, process), commande `local_agent`
-| `src-tauri/src/agent.rs` | HTTPS + WSS vers l'agent avec certificat épinglé (rustls + ring, pas d'autorité externe) | |
+| `src-tauri/src/agent.rs` | HTTPS + WSS vers l'agent avec certificat épinglé (rustls + ring, pas d'autorité externe) ; une adresse `foyer://<identifiant>` passe par `remote.rs` | |
+| `src-tauri/src/remote.rs` | pont iroh : port local `127.0.0.1:<n>` par identifiant, chaque connexion TCP devient un flux vers l'agent | |
 | `src-tauri/installer.nsh` | hooks NSIS du serveur : tâche planifiée, pare-feu, question interface, arrêt propre avant mise à jour |
 | `mock-agent.mjs` | faux agent pour travailler l'interface (`node mock-agent.mjs`, jeton `test`) |
 
@@ -146,7 +151,7 @@ Extraction avec `tar` du système (bsdtar sous Windows lit zip, tar.gz, tar.xz).
 ## Sécurité (état actuel)
 
 - 10 mauvais jetons en 10 min : adresse bloquée 10 min (429), sauf la machine elle-même.
-- Jeton comparé en temps constant. HTTPS avec certificat auto-signé épinglé (empreinte confirmée par l'utilisateur, comme SSH). Ne pas exposer 7878 sur Internet pour autant.
+- Jeton comparé en temps constant. HTTPS avec certificat auto-signé épinglé (empreinte confirmée par l'utilisateur, comme SSH). Ne pas exposer 7878 sur Internet pour autant : passer par l'identifiant. Vu de l'agent, l'accès par identifiant vient de 127.0.0.1, donc sans blocage après mauvais jetons (jeton de 128 bits).
 - Pare-feu Windows : 7878 et ports de jeu ouverts en `remoteip=localsubnet`.
 - Agent et jeux tournent en **SYSTEM** (à changer, voir PLAN).
 - Ne jamais rediriger 7878 sur la Freebox.

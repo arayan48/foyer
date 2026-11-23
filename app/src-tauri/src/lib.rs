@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager, WindowEvent};
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
 
 mod agent;
+mod remote;
 
 /// Agent installé sur cette même machine : jeton et empreinte de son certificat.
 #[tauri::command]

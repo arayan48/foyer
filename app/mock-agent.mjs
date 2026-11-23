@@ -88,6 +88,7 @@ http.createServer(async (q, r) => {
     const pre = path ? path + '/' : ''
     return json([...files].filter(([k]) => k.startsWith(pre) && !k.slice(pre.length).includes('/')).map(([k, v]) => ({ name: k.slice(pre.length), dir: v === null, size: v?.length ?? 0, modified: 1795376593 })).sort((a, b) => b.dir - a.dir || a.name.localeCompare(b.name)))
   }
+  if (q.url === '/api/remote') return json({ id: '8ca623746a4a00d9cd9ca5ed6ca40ea1661567fda57d78e35b444d5a79cf9a49' })
   if (q.url === '/api/system') return json({ ...sys, cpu: 10 + Math.random() * 20 })
   if (q.url === '/api/catalog') return json({ minecraft: [{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.20.4', java: 17 }, { id: '1.16.5', java: 8 }], java: [8, 11, 17, 21, 22, 23, 24, 25], fivem: [{ id: 'recommended', build: '38435' }, { id: 'optional', build: '7290' }, { id: 'latest', build: '38781' }] })
   if (/^\/api\/catalog\/\w+$/.test(q.url)) return json([{ id: '26.3', java: 25 }, { id: '1.21.11', java: 21 }, { id: '1.21.10', java: 21 }, { id: '1.20.4', java: 17 }])

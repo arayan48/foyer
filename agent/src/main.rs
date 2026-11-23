@@ -8,6 +8,7 @@ mod journal;
 mod limits;
 mod orphans;
 mod pack;
+mod remote;
 mod players;
 mod software;
 mod trash;
@@ -230,6 +231,7 @@ async fn run() -> Result<()> {
         .route("/api/servers/{id}/tunnel", get(tunnel::get).post(tunnel::add).delete(tunnel::remove))
         .route("/api/playit", get(tunnel::account).delete(tunnel::unlink))
         .route("/api/playit/link", get(tunnel::link_state).post(tunnel::link_start))
+        .route("/api/remote", get(remote::get))
         .route("/api/journal", get(journal::list))
         .route("/api/trash", get(trash::list))
         .route("/api/trash/{id}", post(trash::restore).delete(trash::purge))
@@ -243,6 +245,18 @@ async fn run() -> Result<()> {
     journal::agent(&format!("Jeton : fichier {}", data.join("token").display()));
     let (tls, fp) = tls(&data).await?;
     journal::agent(&format!("Empreinte du certificat : {fp}"));
+    let port = addr.rsplit_once(':').and_then(|(_, p)| p.parse().ok()).unwrap_or(7878);
+    // gardé en vie jusqu'à l'arrêt ; sans lui, seul l'accès par adresse reste
+    let _remote = match remote::start(&data, port).await {
+        Ok(r) => {
+            journal::agent(&format!("Identifiant de connexion à distance : {}", r.endpoint().id()));
+            Some(r)
+        }
+        Err(e) => {
+            journal::agent(&format!("accès à distance indisponible : {e:#}"));
+            None
+        }
+    };
     axum_server::bind_rustls(addr.parse()?, tls).serve(api.into_make_service_with_connect_info::<SocketAddr>()).await?;
     Ok(())
 }

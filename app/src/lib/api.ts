@@ -83,6 +83,8 @@ export function saveConn(c: Conn | null) {
 
 export function normalizeUrl(u: string) {
   u = u.trim().replace(/\/+$/, '')
+  // identifiant d'agent (clé publique en hexadécimal) : connexion à distance, voir remote.rs
+  if (/^[0-9a-f]{64}$/i.test(u)) return `foyer://${u.toLowerCase()}`
   if (!/^https?:\/\//.test(u)) u = 'https://' + u
   if (!/:\d+$/.test(u)) u += ':7878'
   return u

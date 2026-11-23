@@ -56,8 +56,12 @@ fn tls(want: Option<String>) -> (Arc<ClientConfig>, Arc<Pin>) {
   (Arc::new(cfg), pin)
 }
 
-fn https(url: &str) -> Result<(), String> {
-  if url.starts_with("https://") { Ok(()) } else { Err("Adresse non chiffrée refusée".into()) }
+/// `foyer://<identifiant>` passe par un pont local vers l'agent distant (voir `remote.rs`).
+async fn https(url: &str) -> Result<String, String> {
+  if let Some(id) = url.strip_prefix("foyer://") {
+    return crate::remote::bridge(id).await;
+  }
+  if url.starts_with("https://") { Ok(url.to_string()) } else { Err("Adresse non chiffrée refusée".into()) }
 }
 
 fn err(e: impl std::fmt::Debug) -> String {
@@ -80,7 +84,7 @@ fn client(fp: &str) -> reqwest::Client {
 /// Lit l'empreinte du certificat présenté, sans envoyer le jeton.
 #[tauri::command]
 pub async fn agent_probe(url: String) -> Result<String, String> {
-  https(&url)?;
+  let url = https(&url).await?;
   let (cfg, pin) = tls(None);
   let c = reqwest::Client::builder().use_preconfigured_tls((*cfg).clone()).timeout(Duration::from_secs(8)).build().map_err(err)?;
   let _ = c.get(format!("{url}/api/system")).send().await; // 401 attendu, seule l'empreinte compte
@@ -89,7 +93,7 @@ pub async fn agent_probe(url: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn agent_call(url: String, fp: String, token: String, method: String, path: String, body: Option<String>) -> Result<(u16, String), String> {
-  https(&url)?;
+  let url = https(&url).await?;
   let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(err)?;
   // arrêter un serveur peut prendre 35 s
   let limit = Duration::from_secs(if m == reqwest::Method::GET { 30 } else { 60 });
@@ -118,7 +122,7 @@ async fn check(res: reqwest::Response) -> Result<reqwest::Response, String> {
 pub async fn file_upload(request: tauri::ipc::Request<'_>) -> Result<(), String> {
   let h = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
   let (url, fp, token, path) = (h("url"), h("fp"), h("token"), h("path"));
-  https(&url)?;
+  let url = https(&url).await?;
   let tauri::ipc::InvokeBody::Raw(body) = request.body() else { return Err("Fichier illisible".into()) };
   let res = client(&fp).put(format!("{url}{path}")).bearer_auth(token).timeout(TRANSFER).body(body.clone()).send().await.map_err(err)?;
   check(res).await.map(|_| ())
@@ -147,7 +151,7 @@ fn create_free(dir: &std::path::Path, name: &str) -> Result<(std::fs::File, std:
 #[tauri::command]
 pub async fn file_download(app: AppHandle, url: String, fp: String, token: String, path: String, name: String) -> Result<String, String> {
   use std::io::Write;
-  https(&url)?;
+  let url = https(&url).await?;
   if !plain_name(&name) {
     return Err("Nom de fichier invalide".into());
   }
@@ -183,7 +187,7 @@ struct Line {
 
 /// Jeton en en-tête, jamais dans l'URL.
 async fn connect_ws(url: &str, fp: &str, token: &str, id: &str) -> Result<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, String> {
-  https(url)?;
+  let url = https(url).await?;
   let mut req = format!("wss{}/api/servers/{id}/console", &url[5..]).into_client_request().map_err(err)?;
   req.headers_mut().insert("Authorization", format!("Bearer {token}").parse().map_err(err)?);
   let (cfg, _) = tls(Some(fp.to_string()));
@@ -252,7 +256,7 @@ mod tests {
   }
 }
 
-/// Contre un vrai agent : FOYER_TEST_URL=https://127.0.0.1:7999 FOYER_TEST_TOKEN=… cargo test
+/// Contre un vrai agent : FOYER_TEST_URL=https://127.0.0.1:7999 (ou foyer://<identifiant>) FOYER_TEST_TOKEN=… cargo test
 #[cfg(test)]
 mod live {
   #[test]
@@ -264,7 +268,9 @@ mod live {
       assert_eq!(st, 200);
       let bad = "00".repeat(32);
       assert_eq!(super::agent_call(url.clone(), bad, token.clone(), "GET".into(), "/api/system".into(), None).await.unwrap_err(), super::MISMATCH);
-      assert!(super::agent_probe(url.replace("https", "http")).await.is_err());
+      if url.starts_with("https") {
+        assert!(super::agent_probe(url.replace("https", "http")).await.is_err());
+      }
       // console : jeton en en-tête accepté, mauvais jeton refusé
       assert!(super::connect_ws(&url, &fp, &token, "x").await.is_ok());
       assert!(super::connect_ws(&url, &fp, "mauvais", "x").await.is_err());

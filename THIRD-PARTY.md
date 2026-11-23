@@ -1,5 +1,9 @@
 # Composants tiers
 
+## iroh
+
+Source : https://github.com/n0-computer/iroh — licence MIT ou Apache-2.0, au choix. Accès à distance par identifiant (agent et appli).
+
 ## playit-agent (crates `playit-agent-core`, `playit-api-client`)
 
 Source : https://github.com/playit-cloud/playit-agent

@@ -14,4 +14,5 @@
 | 2026-11-18 | Nom « Foyer », accent rose braise | Héberger chez soi ; identité propre, pas copiée de HTN |
 | 2026-11-19 | Sécurité sans service externe : certificat auto-signé épinglé, appairage local | Un service tiers (domaine, Let's Encrypt, relais) peut fermer ; l'agent doit rester sûr tout seul |
 | 2026-11-23 | Tunnel playit.gg intégré à l'agent, pas de service `playit.exe` séparé | Un seul exe et une seule mise à jour ; Foyer crée et supprime lui-même les tunnels ; reste optionnel |
+| 2026-11-23 | Accès à distance par identifiant avec iroh, pas de VPN ni de compte | Marche derrière une box ou chez un ami sans ouvrir de port ; relais n0 par défaut mais remplaçables (iroh-relay est libre) ; le relais ne voit que du chiffré, HTTPS épinglé et jeton passent par-dessus |
 | 2026-11-19 | Peu de dépendances, seulement des bibliothèques connues et maintenues | Une dépendance ou un service peut mourir à tout moment ; tout ce qui est externe reste optionnel |

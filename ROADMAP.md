@@ -61,6 +61,9 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 ## 7. Réseau et accès
 - [x] **P1** Liste des joueurs connectés, kick / ban / op depuis l'appli (Minecraft)
 - [x] **P2** Accès depuis l'extérieur pour les joueurs : intégration playit.gg (tunnel sans ouvrir la box)
+- [x] **P2** Connexion à l'agent depuis n'importe quel réseau par son identifiant (iroh, sans ouvrir de port)
+- [ ] **P3** Relais iroh auto-hébergé, réglable dans l'appli et l'agent
+- [ ] **P3** Annuaire facultatif sur le site (nom → identifiant)
 - [ ] **P2** Vérification des ports (« ton serveur est-il joignable ? »)
 - [ ] **P2** Plusieurs machines dans le même client (liste de serveurs Foyer)
 - [ ] **P3** Découverte automatique des agents sur le réseau local
@@ -73,7 +76,6 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [x] **P2** Blocage temporaire après plusieurs mauvais jetons
 - [x] **P2** Corbeille : serveur supprimé archivé quelques jours avant effacement
 - [ ] **P2** `SECURITY.md` (signaler une faille en privé) + `cargo audit` / `npm audit` dans GitHub Actions
-- [ ] **P3** Doc : accès à distance via VPN (Tailscale, WireGuard) plutôt que port ouvert sur la box
 - [ ] **P2** Comptes utilisateurs et rôles (admin, modérateur, lecture seule) pour les amis
 - [x] **P2** Journal des actions (adresse IP, action, date)
 - [ ] **P2** Faire tourner les jeux sous un compte Windows dédié, pas SYSTEM
