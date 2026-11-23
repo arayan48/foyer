@@ -12,3 +12,9 @@ const app = mount(App, {
 })
 
 export default app
+
+// Pas de menu du navigateur (Retour, Imprimer…) ; on le garde dans les champs pour copier/coller.
+document.addEventListener('contextmenu', (e) => {
+  const t = e.target as HTMLElement
+  if (!t.closest('input, textarea, [contenteditable="true"]')) e.preventDefault()
+})
