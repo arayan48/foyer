@@ -6,6 +6,8 @@
   nsExec::Exec `powershell -NoProfile -Command "try { $$t = (Get-Content C:\Foyer\token -Raw).Trim(); foreach ($$s in 'https','http') { ('header = {0}Authorization: Bearer {1}{0}' -f [char]34, $$t) | curl.exe -sk -f -m 120 -X POST -K - ($$s + '://127.0.0.1:7878/api/shutdown'); if ($$LASTEXITCODE -eq 0) { break } } } catch {}"`
   nsExec::Exec 'schtasks /End /TN "Foyer Agent"'
   nsExec::Exec 'taskkill /F /T /IM foyer-agent.exe'
+  ; interface ouverte sur le serveur : elle bloquerait la copie et l'agent ne serait pas relancé
+  nsExec::Exec 'taskkill /F /IM foyer.exe'
   Sleep 1000
 !macroend
 
