@@ -82,6 +82,8 @@ pub struct Setup {
     pub max_players: Option<u16>,
     /// Chaîne de connexion MySQL/MariaDB pour ESX et QBCore.
     pub db_url: Option<String>,
+    /// Minecraft : lien https d'un modpack (.mrpack Modrinth ou server pack .zip).
+    pub pack: Option<String>,
 }
 
 /// Base créée par Foyer dans la MariaDB locale.

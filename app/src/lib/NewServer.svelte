@@ -42,6 +42,46 @@
   let levelType = $state('default')
   let hardcore = $state(false)
   let onlineMode = $state(true)
+  // modpack : .mrpack Modrinth choisi dans la liste, ou lien d'un server pack .zip (CurseForge…)
+  type Pack = { title: string; url: string; icon?: string }
+  let pack = $state<Pack | null>(null)
+  let packQ = $state('')
+  let packLink = $state('')
+  let packHits = $state<{ id: string; title: string; author: string; icon: string | null }[]>([])
+  let packError = $state('')
+  let packTimer: ReturnType<typeof setTimeout>
+  function packSearch() {
+    clearTimeout(packTimer)
+    packTimer = setTimeout(async () => {
+      const q = packQ.trim()
+      if (!q) return (packHits = [])
+      try {
+        const qs = new URLSearchParams({ query: q, limit: '6', facets: JSON.stringify([['project_type:modpack']]) })
+        const r = await fetch(`https://api.modrinth.com/v2/search?${qs}`).then((r) => r.json())
+        if (q === packQ.trim()) packHits = r.hits.map((h: any) => ({ id: h.project_id, title: h.title, author: h.author, icon: h.icon_url }))
+      } catch { packError = 'Recherche Modrinth indisponible.' }
+    }, 300)
+  }
+  async function pickPack(h: (typeof packHits)[number]) {
+    packError = ''
+    try {
+      const qs = new URLSearchParams({ loaders: JSON.stringify(['neoforge', 'forge', 'fabric']) })
+      const v = (await fetch(`https://api.modrinth.com/v2/project/${h.id}/version?${qs}`).then((r) => r.json()))[0]
+      const f = v?.files.find((f: any) => f.primary) ?? v?.files[0]
+      const loader = (['neoforge', 'forge', 'fabric'] as Software[]).find((l) => v.loaders.includes(l))
+      if (!f || !loader) throw new Error()
+      pack = { title: `${h.title} ${v.version_number}`, url: f.url, icon: h.icon ?? undefined }
+      sw = loader
+      version = v.game_versions[0]
+      loadVersions()
+    } catch { packError = "Ce modpack n'a pas de version Fabric, Forge ou NeoForge (Quilt n'est pas géré)." }
+  }
+  function useLink() {
+    const u = packLink.trim()
+    if (!u.startsWith('https://')) return (packError = 'Le lien doit commencer par https://')
+    packError = ''
+    pack = { title: decodeURIComponent(u.split('/').pop()?.split('?')[0] || u), url: u }
+  }
   const LEVELS = { default: 'Normal', flat: 'Plat', largeBiomes: 'Grands biomes', amplified: 'Amplifié' }
   // FiveM
   let channel = $state('recommended')
@@ -128,7 +168,7 @@
         method: 'POST',
         body: JSON.stringify(
           game === 'minecraft'
-            ? { name, game, port, ram_mb: ram * 1024, eula, software: sw, version, seed: seed.trim(), level_type: levelType, hardcore, online_mode: onlineMode }
+            ? { name, game, port, ram_mb: ram * 1024, eula, software: sw, version, seed: seed.trim(), level_type: levelType, hardcore, online_mode: onlineMode, pack: pack?.url }
             : {
                 name, game, port, ram_mb: ram * 1024, version: channel, txadmin,
                 ...(txadmin ? {} : { framework, license_key: licenseKey.trim(), max_players: maxPlayers, db_url: framework === 'vanilla' ? undefined : dbUrl }),
@@ -210,6 +250,36 @@
         {#if SOFTWARE[sw].addons}<small>Vérifie d'abord la version demandée par tes {SOFTWARE[sw].addons}.</small>{/if}
       </label>
       {#if mcError}<p class="err-text" role="alert">Liste des versions indisponible : {mcError} <button type="button" class="btn" onclick={loadVersions}>Réessayer</button></p>{/if}
+      <fieldset>
+        <legend>Modpack <em>facultatif</em></legend>
+        {#if pack}
+          <div class="pack">
+            {#if pack.icon}<img src={pack.icon} alt="" width="32" height="32" />{/if}
+            <strong>{pack.title}</strong>
+            <button type="button" class="btn" onclick={() => (pack = null)}>Retirer</button>
+          </div>
+        {:else}
+          <div class="search">
+            <Search size={14} />
+            <input class="input" type="search" placeholder="Chercher sur Modrinth" bind:value={packQ} oninput={packSearch} aria-label="Chercher un modpack" spellcheck="false" onkeydown={(e) => e.key === 'Enter' && e.preventDefault()} />
+          </div>
+          {#each packHits as h (h.id)}
+            <button type="button" class="pack hit" onclick={() => pickPack(h)}>
+              {#if h.icon}<img src={h.icon} alt="" width="32" height="32" />{/if}
+              <span><strong>{h.title}</strong><small>par {h.author}</small></span>
+            </button>
+          {/each}
+          <label class="field">
+            <span>Ou lien d'un server pack .zip</span>
+            <div class="row">
+              <input class="input" type="url" placeholder="https://…/Server-Files.zip" bind:value={packLink} spellcheck="false" onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), useLink())} />
+              <button type="button" class="btn" disabled={!packLink.trim()} onclick={useLink}>Utiliser</button>
+            </div>
+            <small>CurseForge (All The Mods…) : page du pack, onglet Files, « Server Pack », clic droit sur Download, copier le lien. Choisis ensuite le même logiciel et la même version que le pack.</small>
+          </label>
+        {/if}
+        {#if packError}<p class="err-text" role="alert">{packError}</p>{/if}
+      </fieldset>
     {:else}
       <label class="field">
         <span>Build FiveM</span>
@@ -390,4 +460,11 @@
   .note { color: var(--muted); max-width: 65ch; }
   .note strong { color: var(--ink); font-variant-numeric: tabular-nums; }
   .foot { display: flex; gap: 8px; justify-content: flex-end; }
+  .pack { display: flex; align-items: center; gap: 10px; }
+  .pack img { border-radius: 6px; }
+  .pack span { display: flex; flex-direction: column; }
+  .pack.hit { width: 100%; padding: 6px 8px; border: 0; background: none; border-radius: 8px; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+  .pack.hit:hover, .pack.hit:focus-visible { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  .row { display: flex; gap: 8px; }
+  .row .input { flex: 1; }
 </style>

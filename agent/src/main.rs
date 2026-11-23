@@ -6,6 +6,7 @@ mod games;
 mod journal;
 mod limits;
 mod orphans;
+mod pack;
 mod players;
 mod software;
 mod trash;
@@ -478,9 +479,31 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     tokio::spawn(async move {
         let dir = app2.data.join("servers").join(&s2.id);
         let log = logger(&app2, &s2.id);
-        let setup = games::Setup { txadmin: s2.txadmin, framework: s2.framework.clone(), ..n.setup };
+        let mut setup = games::Setup { txadmin: s2.txadmin, framework: s2.framework.clone(), ..n.setup };
         let auto_java = s2.game == Game::Minecraft && setup.java.is_none();
-        let r = games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await;
+        let tmp = app2.data.join("tmp").join(format!("p{:016x}", rand::random::<u64>()));
+        let r = async {
+            let pack = match setup.pack.clone().filter(|u| !u.trim().is_empty() && s2.game == Game::Minecraft) {
+                Some(url) => {
+                    let src = pack::fetch(url.trim(), &tmp, &log).await?;
+                    // un .mrpack dit lui-même son logiciel et sa version
+                    if let Some((sw, mc)) = pack::target(&src) {
+                        log(format!("Modpack prévu pour {} {mc}.", sw.label()));
+                        (setup.software, setup.version) = (Some(sw), Some(mc));
+                    }
+                    Some(src)
+                }
+                None => None,
+            };
+            let v = games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await?;
+            if let Some(src) = pack {
+                pack::apply(&src, &dir, &log).await?;
+                log("Modpack installé.".into());
+            }
+            anyhow::Ok(v)
+        }
+        .await;
+        tokio::fs::remove_dir_all(&tmp).await.ok();
         if let Ok(v) = &r {
             firewall(&s2, true).await;
             let mut servers = app2.servers.lock().await;

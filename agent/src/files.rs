@@ -209,7 +209,7 @@ async fn unpack(file: &Path, dest: &Path, tmp: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn drop_links(dir: &Path) -> std::io::Result<()> {
+pub(crate) fn drop_links(dir: &Path) -> std::io::Result<()> {
     for e in std::fs::read_dir(dir)? {
         let e = e?;
         let t = e.file_type()?;
@@ -222,7 +222,7 @@ fn drop_links(dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn merge(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(crate) fn merge(from: &Path, to: &Path) -> std::io::Result<()> {
     for e in std::fs::read_dir(from)? {
         let e = e?;
         let dst = to.join(e.file_name());
