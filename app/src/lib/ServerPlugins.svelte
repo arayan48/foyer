@@ -122,6 +122,10 @@
     } catch (e) { error = (e as Error).message } finally { ss.loading = false }
   }
 
+  // recherche en direct : relance 300 ms après la dernière frappe
+  let typing: ReturnType<typeof setTimeout>
+  const live = (s: typeof ps, go: () => void) => { clearTimeout(typing); typing = setTimeout(() => refilter(s, go), 300) }
+
   // un filtre qui change revient à la page 1
   const refilter = (s: typeof ps, go: () => void) => { s.page = 0; go() }
   const goPage = (s: typeof ps, n: number, go: () => void) => { s.page = n; go(); document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' }) }
@@ -159,10 +163,10 @@
 
 {#snippet browser(s: typeof ps, go: () => void, cats: Record<string, string>, placeholder: string, mode: 'plugin' | 'shader' | 'client')}
   {@const shader = mode === 'shader'}
-  <form class="bar" onsubmit={(e) => { e.preventDefault(); refilter(s, go) }}>
+  <form class="bar" onsubmit={(e) => { e.preventDefault(); clearTimeout(typing); refilter(s, go) }}>
     <div class="search">
       <Search size={16} />
-      <input class="input" type="search" {placeholder} bind:value={s.q} aria-label="Rechercher" />
+      <input class="input" type="search" {placeholder} bind:value={s.q} oninput={() => live(s, go)} aria-label="Rechercher" />
     </div>
     <select class="input sort" bind:value={s.sort} onchange={() => refilter(s, go)} aria-label="Trier par">
       {#each SORTS as [v, l]}<option value={v}>{l}</option>{/each}
