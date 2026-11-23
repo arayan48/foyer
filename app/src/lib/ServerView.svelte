@@ -91,7 +91,7 @@
       {:else if tab === 'properties'}
         <ServerProperties {conn} {server} />
       {:else if tab === 'plugins'}
-        <ServerPlugins {conn} {server} />
+        <ServerPlugins {conn} {server} {address} />
       {:else if tab === 'players' && mc}
         <ServerPlayers {conn} {server} />
       {:else if tab === 'players'}

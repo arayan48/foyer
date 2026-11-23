@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { Puzzle, Search, Download, Trash2, Sparkles, ChevronLeft, ChevronRight, ExternalLink, Heart, Clock, Check } from 'lucide-svelte'
+  import { Puzzle, Search, Download, Trash2, Sparkles, ChevronLeft, ChevronRight, ExternalLink, Heart, Clock, Check, Package, Eye, Plus, X } from 'lucide-svelte'
   import SubPages from './SubPages.svelte'
   import Confirm from './Confirm.svelte'
-  import { SOFTWARE, call, bytes, software, type Conn, type Server } from './api'
+  import { SOFTWARE, call, bytes, software, upload, download, type Conn, type Server } from './api'
+  import { buildPack, type PackItem } from './pack'
 
-  let { conn, server }: { conn: Conn; server: Server } = $props()
+  let { conn, server, address }: { conn: Conn; server: Server; address: string } = $props()
   type Plugin = { file: string; enabled: boolean; size: number }
   type Hit = { id: string; slug?: string; title: string; description: string; author: string; downloads: number; follows: number; updated: string; icon: string | null; categories?: string[] }
 
@@ -16,6 +17,7 @@
     { id: 'installed', label: 'Installés', icon: Puzzle },
     { id: 'add', label: 'Ajouter', icon: Download },
     { id: 'shaders', label: 'Shaders', icon: Sparkles },
+    { id: 'pack', label: 'Pack joueurs', icon: Package },
   ]
   const SORTS = [
     ['relevance', 'Pertinence'],
@@ -46,6 +48,40 @@
   const blank = () => ({ q: '', sort: 'downloads', cat: '', page: 0, hits: null as Hit[] | null, total: 0, per: 20, loading: false })
   let ps = $state(blank())
   let ss = $state(blank())
+  let cs = $state(blank())
+
+  // pack joueurs : gardé sur ce PC, par serveur
+  const packKey = `foyer.pack.${server.id}`
+  let pack = $state<PackItem[]>(JSON.parse(localStorage.getItem(packKey) ?? '[]'))
+  $effect(() => localStorage.setItem(packKey, JSON.stringify(pack)))
+  const inPack = (h: Hit) => pack.some((p) => p.id === h.id)
+  const togglePack = (h: Hit, kind: PackItem['kind']) => (pack = inPack(h) ? pack.filter((p) => p.id !== h.id) : [...pack, { id: h.id, title: h.title, kind }])
+  let packInfo = $state('')
+
+  async function exportPack() {
+    busy = 'pack'
+    error = packInfo = ''
+    try {
+      const { bytes: zip, missing } = await buildPack($state.snapshot(pack), sw.mc, server.name, { name: server.name, ip: `${address}:${server.port}` })
+      const file = `${server.name.replace(/[^\w-]+/g, '-')}.mrpack`
+      const path = `/api/servers/${server.id}/files/content?path=${encodeURIComponent(file)}`
+      await upload(conn, path, new File([zip], file))
+      const saved = await download(conn, path, file)
+      packInfo = (saved ? `Enregistré : ${saved}` : 'Pack téléchargé') + (missing.length ? `. Pas dispo pour ${sw.mc} : ${missing.join(', ')}` : '')
+    } catch (e) { error = (e as Error).message } finally { busy = '' }
+  }
+
+  // aperçu d'un shader : captures publiées sur Modrinth
+  let preview = $state<{ title: string; slug?: string; shots: { url: string; title?: string }[] } | null>(null)
+  let dlg = $state<HTMLDialogElement>()
+  async function openPreview(h: Hit) {
+    preview = { title: h.title, slug: h.slug, shots: [] }
+    dlg?.showModal()
+    try {
+      const p = await fetch(`https://api.modrinth.com/v2/project/${h.id}`).then((r) => r.json())
+      if (preview?.title === h.title) preview.shots = p.gallery.map((g: any) => ({ url: g.url, title: g.title }))
+    } catch { /* pas d'aperçu, le lien Modrinth reste */ }
+  }
 
   async function load() {
     try { list = await call<Plugin[]>(conn, base) } catch (e) { error = (e as Error).message }
@@ -71,11 +107,14 @@
     } catch (e) { error = (e as Error).message } finally { ps.loading = false }
   }
 
-  async function searchShaders() {
+  const searchShaders = () => searchModrinth(ss, [['project_type:shader']])
+  const searchClient = () => searchModrinth(cs, [['project_type:mod'], ['categories:fabric'], [`versions:${sw.mc}`], ['client_side:required', 'client_side:optional']])
+
+  async function searchModrinth(ss: ReturnType<typeof blank>, base: string[][]) {
     ss.loading = true
     error = ''
     try {
-      const facets = [['project_type:shader'], ...(ss.cat ? [[`categories:${ss.cat}`]] : [])]
+      const facets = [...base, ...(ss.cat ? [[`categories:${ss.cat}`]] : [])]
       const qs = new URLSearchParams({ query: ss.q, index: ss.sort, limit: String(ss.per), offset: String(ss.page * ss.per), facets: JSON.stringify(facets) })
       const r = await fetch(`https://api.modrinth.com/v2/search?${qs}`).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Modrinth : ${r.status}`))))
       ss.hits = r.hits.map((h: any) => ({ id: h.project_id, slug: h.slug, title: h.title, description: h.description, author: h.author, downloads: h.downloads, follows: h.follows, updated: h.date_modified, icon: h.icon_url, categories: h.display_categories }))
@@ -90,6 +129,7 @@
   function onselect() {
     if (page === 'add' && !ps.hits) searchPlugins()
     if (page === 'shaders' && !ss.hits) searchShaders()
+    if (page === 'pack' && !cs.hits && sw.mc) searchClient()
   }
 
   const name = (f: string) => f.replace(/\.jar(\.disabled)?$/, '')
@@ -117,7 +157,8 @@
   }
 </script>
 
-{#snippet browser(s: typeof ps, go: () => void, cats: Record<string, string>, placeholder: string, shader: boolean)}
+{#snippet browser(s: typeof ps, go: () => void, cats: Record<string, string>, placeholder: string, mode: 'plugin' | 'shader' | 'client')}
+  {@const shader = mode === 'shader'}
   <form class="bar" onsubmit={(e) => { e.preventDefault(); refilter(s, go) }}>
     <div class="search">
       <Search size={16} />
@@ -157,8 +198,11 @@
             {#if h.updated}<span title="Dernière mise à jour"><Clock size={13} />{ago(h.updated)}</span>{/if}
           </div>
           <div class="act">
-            {#if shader}
-              <a class="btn" href="https://modrinth.com/shader/{h.slug}" target="_blank" rel="noreferrer"><ExternalLink size={14} /> Voir sur Modrinth</a>
+            {#if mode !== 'plugin'}
+              {#if shader}<button class="btn" onclick={() => openPreview(h)}><Eye size={14} /> Aperçu</button>{/if}
+              <button class="btn" class:done={inPack(h)} aria-pressed={inPack(h)} onclick={() => togglePack(h, shader ? 'shader' : 'mod')}>
+                {#if inPack(h)}<Check size={14} /> Dans le pack{:else}<Plus size={14} /> Au pack{/if}
+              </button>
             {:else if installed(h)}
               <span class="btn done" aria-disabled="true"><Check size={14} /> Installé</span>
             {:else}
@@ -216,14 +260,53 @@
   {:else if page === 'add'}
     <h2>Ajouter un {word}</h2>
     <p class="lead">Catalogue Modrinth, filtré pour {SOFTWARE[sw.id].label}{sw.mc ? ` et Minecraft ${sw.mc}` : ''}.</p>
-    {@render browser(ps, searchPlugins, PLUGIN_CATS, folder === 'mods' ? 'Lithium, Fabric API, Create…' : 'EssentialsX, LuckPerms, WorldEdit…', false)}
+    {@render browser(ps, searchPlugins, PLUGIN_CATS, folder === 'mods' ? 'Lithium, Fabric API, Create…' : 'EssentialsX, LuckPerms, WorldEdit…', 'plugin')}
 
   {:else if page === 'shaders'}
     <h2>Shaders</h2>
-    <p class="lead">Ils tournent sur le PC de chaque joueur (Iris ou OptiFine), pas sur le serveur. Choisis-en un ici et partage le lien à tes joueurs.</p>
-    {@render browser(ss, searchShaders, SHADER_CATS, 'Complementary, BSL, Sildur…', true)}
+    <p class="lead">Ils tournent sur le PC de chaque joueur. Ajoute-les au pack joueurs : Iris et Sodium sont inclus d'office.</p>
+    {@render browser(ss, searchShaders, SHADER_CATS, 'Complementary, BSL, Sildur…', 'shader')}
+
+  {:else if page === 'pack'}
+    <h2>Pack joueurs</h2>
+    {#if !sw.mc}
+      <p class="lead">Choisis d'abord une version de Minecraft pour ce serveur.</p>
+    {:else}
+      <p class="lead">Un fichier à ouvrir avec Modrinth App ou Prism Launcher : Minecraft {sw.mc}, Fabric, les mods et le shader choisis, et ce serveur déjà dans la liste.</p>
+      {#if pack.length}
+        <div class="card">
+          {#each pack as p (p.id)}
+            <div class="row">
+              <div class="who">
+                <span class="ph sm">{#if p.kind === 'shader'}<Sparkles size={15} />{:else}<Puzzle size={15} />{/if}</span>
+                <div><strong>{p.title}</strong><small>{p.kind === 'shader' ? 'Shader' : 'Mod joueur'}</small></div>
+              </div>
+              <div class="val acts">
+                <button class="btn icon ghost" onclick={() => (pack = pack.filter((x) => x.id !== p.id))} aria-label="Retirer {p.title}"><X size={15} /></button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      <div class="export">
+        <button class="btn primary" disabled={!pack.length || !!busy} onclick={exportPack}><Download size={14} /> {busy === 'pack' ? 'Préparation…' : 'Télécharger le pack'}</button>
+        {#if packInfo}<span class="muted">{packInfo}</span>{/if}
+      </div>
+      <h3>Ajouter des mods joueurs</h3>
+      {@render browser(cs, searchClient, {}, 'Sodium, Xaero, JourneyMap…', 'client')}
+    {/if}
   {/if}
 </SubPages>
+
+<dialog class="dialog preview" bind:this={dlg} onclick={(e) => e.target === dlg && dlg?.close()} aria-label="Aperçu de {preview?.title}">
+  {#if preview}
+    <div class="phead"><h2>{preview.title}</h2><button class="btn icon ghost" onclick={() => dlg?.close()} aria-label="Fermer"><X size={16} /></button></div>
+    <div class="shots">
+      {#each preview.shots as g}<img src={g.url} alt={g.title ?? ''} loading="lazy" />{:else}<p class="muted">Chargement des captures…</p>{/each}
+    </div>
+    <div class="foot"><a class="btn" href="https://modrinth.com/shader/{preview.slug}" target="_blank" rel="noreferrer"><ExternalLink size={14} /> Voir sur Modrinth</a></div>
+  {/if}
+</dialog>
 
 <Confirm bind:open={askDelete} title="Supprimer {toDelete ? name(toDelete.file) : ''} ?" text="Le fichier est retiré du dossier {folder}. Ses réglages restent, tu pourras le réinstaller." onconfirm={() => toDelete && remove(toDelete)} />
 
@@ -275,5 +358,13 @@
   .pager .num[aria-current='page'] { background: var(--primary); color: var(--primary-ink); font-weight: 600; }
   .gap { color: var(--faint); padding: 0 4px; }
 
+  .act { gap: 6px; }
+  .export { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0 32px; }
+  h3 { font-size: 1rem; margin-bottom: 12px; }
+  .preview { width: min(900px, 92vw); }
+  .phead { display: flex; justify-content: space-between; align-items: center; padding: 16px 22px; }
+  .shots { display: grid; gap: 10px; padding: 0 22px 18px; max-height: 70vh; overflow: auto; }
+  .shots img { width: 100%; height: auto; border-radius: 10px; }
+  .preview .foot { display: flex; justify-content: flex-end; padding: 14px 22px; border-top: 1px solid var(--line-soft); }
   .empty { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 40px 16px; border: 1px dashed var(--line); border-radius: var(--r-lg); color: var(--muted); }
 </style>
