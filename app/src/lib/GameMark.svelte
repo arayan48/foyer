@@ -24,7 +24,7 @@
 </span>
 
 <style>
-  .mark { display: grid; place-items: center; border-radius: 10px; flex: none; }
+  .mark { background: var(--muted, oklch(0.3 0.02 60)); font-family: Unbounded, sans-serif; display: grid; place-items: center; border-radius: 10px; flex: none; }
   .minecraft { background: oklch(0.3 0.05 140); box-shadow: inset 0 0 0 1px oklch(0.42 0.07 140); }
   .valheim { background: oklch(0.28 0.03 240); color: oklch(0.85 0.04 240); font-family: Unbounded, sans-serif; }
   .terraria { background: oklch(0.3 0.06 150); color: oklch(0.88 0.1 140); font-family: Unbounded, sans-serif; }

@@ -1,4 +1,4 @@
-export type Game = 'minecraft' | 'fivem' | 'valheim' | 'terraria'
+export type Game = 'minecraft' | 'fivem' | 'valheim' | 'terraria' | 'cs2' | 'dayz' | 'rust' | 'gmod' | 'redm' | 'satisfactory' | 'assetto'
 export type Status = 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'busy' | 'error'
 
 export interface Server {
@@ -202,6 +202,13 @@ export const GAMES: Record<Game, { label: string; hint: string; port: number; mi
   fivem: { label: 'FiveM', hint: 'GTA V roleplay, ESX ou QBCore', port: 30120, min: '1 cœur · 2 Go RAM · 10 Go disque', cats: ['Jeu de rôle'], soon: true },
   valheim: { label: 'Valheim', hint: 'Survie viking en coopération', port: 2456, min: '2 cœurs · 4 Go RAM · 2 Go disque', cats: ['Survie', 'Coopération'], soon: true },
   terraria: { label: 'Terraria', hint: 'Aventure 2D, serveur TShock', port: 7777, min: '1 cœur · 512 Mo RAM · 500 Mo disque', cats: ['Aventure', 'Bac à sable'], soon: true },
+  cs2: { label: 'Counter-Strike 2', hint: 'Tir tactique en équipe', port: 27015, min: '2 cœurs · 2 Go RAM · 40 Go disque', cats: ['Tir'], soon: true },
+  dayz: { label: 'DayZ', hint: 'Survie post-apocalyptique', port: 2302, min: '2 cœurs · 4 Go RAM · 20 Go disque', cats: ['Survie'], soon: true },
+  rust: { label: 'Rust', hint: 'Survie multijoueur, Oxide', port: 28015, min: '4 cœurs · 8 Go RAM · 20 Go disque', cats: ['Survie'], soon: true },
+  gmod: { label: 'Garry’s Mod', hint: 'Bac à sable, DarkRP ou TTT', port: 27015, min: '2 cœurs · 2 Go RAM · 10 Go disque', cats: ['Bac à sable', 'Jeu de rôle'], soon: true },
+  redm: { label: 'RedM', hint: 'Red Dead roleplay, VORP ou RSG', port: 30120, min: '2 cœurs · 4 Go RAM · 10 Go disque', cats: ['Jeu de rôle'], soon: true },
+  satisfactory: { label: 'Satisfactory', hint: 'Construction d’usine en coopération', port: 7777, min: '4 cœurs · 12 Go RAM · 15 Go disque', cats: ['Construction', 'Coopération'], soon: true },
+  assetto: { label: 'Assetto Corsa', hint: 'Course automobile, AssettoServer', port: 9600, min: '2 cœurs · 2 Go RAM · 5 Go disque', cats: ['Course'], soon: true },
 }
 
 export type Software = 'vanilla' | 'paper' | 'purpur' | 'fabric' | 'forge' | 'neoforge'

@@ -7,7 +7,14 @@
   import fivem from '../assets/games/fivem.webp'
   import valheim from '../assets/games/valheim.webp'
   import terraria from '../assets/games/terraria.webp'
-  const POSTERS: Record<Game, string> = { minecraft, fivem, valheim, terraria }
+  import cs2 from '../assets/games/cs2.webp'
+  import dayz from '../assets/games/dayz.webp'
+  import rust from '../assets/games/rust.webp'
+  import gmod from '../assets/games/gmod.webp'
+  import redm from '../assets/games/redm.webp'
+  import satisfactory from '../assets/games/satisfactory.webp'
+  import assetto from '../assets/games/assetto.webp'
+  const POSTERS: Record<Game, string> = { minecraft, fivem, valheim, terraria, cs2, dayz, rust, gmod, redm, satisfactory, assetto }
 
   let { conn, servers, oncreated, oncancel }: {
     conn: Conn

@@ -55,7 +55,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 - [ ] **P1** Gestion des mods / plugins Minecraft (Modrinth, Hangar)
 - [ ] **P1** Ressources FiveM (dossier `resources`, activer / désactiver)
 - [ ] **P2** Recettes de jeux en fichiers (TOML) pour en ajouter sans recompiler
-- [ ] **P2** Nouveaux jeux : RedM, Rust, Valheim, Palworld, Terraria, ARK, 7 Days to Die, Satisfactory (via SteamCMD)
+- [ ] **P2** Nouveaux jeux : RedM, Rust, Valheim, Palworld, Terraria, ARK, 7 Days to Die, Satisfactory, Counter-Strike 2, DayZ, Garry’s Mod, Assetto Corsa (via SteamCMD)
 - [ ] **P3** Catalogue communautaire de recettes
 
 ## 7. Réseau et accès
