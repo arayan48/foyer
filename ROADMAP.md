@@ -60,7 +60,7 @@ Cocher au fur et à mesure. Priorités : **P1** = prochaine version, **P2** = en
 
 ## 7. Réseau et accès
 - [x] **P1** Liste des joueurs connectés, kick / ban / op depuis l'appli (Minecraft)
-- [ ] **P2** Accès depuis l'extérieur pour les joueurs : intégration playit.gg (tunnel sans ouvrir la box)
+- [x] **P2** Accès depuis l'extérieur pour les joueurs : intégration playit.gg (tunnel sans ouvrir la box)
 - [ ] **P2** Vérification des ports (« ton serveur est-il joignable ? »)
 - [ ] **P2** Plusieurs machines dans le même client (liste de serveurs Foyer)
 - [ ] **P3** Découverte automatique des agents sur le réseau local

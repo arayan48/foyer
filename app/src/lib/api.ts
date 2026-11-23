@@ -193,6 +193,22 @@ export function patchServer(c: Conn, id: string, body: Partial<Server>) {
   return call<Server>(c, `/api/servers/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 }
 
+export interface Tunnel { address: string | null; disabled: string | null }
+export const playit = {
+  account: (c: Conn) => call<{ linked: boolean; status: string | null }>(c, '/api/playit'),
+  link: (c: Conn) => call<{ url: string }>(c, '/api/playit/link', { method: 'POST' }),
+  linkState: (c: Conn) => call<'waiting' | 'done' | 'rejected' | 'expired' | 'error' | null>(c, '/api/playit/link'),
+  unlink: (c: Conn) => call<void>(c, '/api/playit', { method: 'DELETE' }),
+  get: (c: Conn, id: string) => call<Tunnel | null>(c, `/api/servers/${id}/tunnel`),
+  add: (c: Conn, id: string) => call<void>(c, `/api/servers/${id}/tunnel`, { method: 'POST' }),
+  remove: (c: Conn, id: string) => call<void>(c, `/api/servers/${id}/tunnel`, { method: 'DELETE' }),
+}
+
+export async function openLink(url: string) {
+  if (inTauri) return (await import('@tauri-apps/plugin-opener')).openUrl(url)
+  window.open(url, '_blank', 'noreferrer')
+}
+
 export function host(c: Conn) {
   return new URL(c.url).hostname
 }

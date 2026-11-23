@@ -41,6 +41,7 @@ Deux installeurs construits à partir de la même appli :
 | `players.rs` | joueurs Minecraft : présents, listes, commandes |
 | `journal.rs` | journal des actions (`actions.log`, 1 Mo puis `actions.log.1`) |
 | `trash.rs` | corbeille des serveurs supprimés |
+| `tunnel.rs` | accès depuis Internet par playit.gg : liaison du compte, un tunnel par serveur, tunnel exécuté dans l'agent (crates `playit-agent-core` et `playit-api-client`, BSD-2, épinglées au commit `bddcbed`) |
 | `build.rs` | icône Windows de l'exe |
 
 ### Données (`FOYER_DATA`, défaut `C:\Foyer` ou `/var/lib/foyer`)
@@ -48,6 +49,7 @@ Deux installeurs construits à partir de la même appli :
 token                 jeton (32 hex), créé au premier lancement
 cert.pem, key.pem      certificat auto-signé de l'agent, créé au premier lancement
 fingerprint           empreinte SHA-256 du certificat (à comparer à la connexion)
+playit.json           clé de l'agent playit.gg et tunnel de chaque serveur (absent si non relié)
 servers.json          liste des serveurs (id, name, game, port, ram_mb, auto_start, auto_restart)
 runtime/java25/       Java Temurin 25 partagé (Minecraft)
 servers/<id>/         fichiers d'un serveur (server.jar, monde, artifacts FiveM…)
@@ -80,6 +82,9 @@ Toutes les routes exigent `Authorization: Bearer <jeton>`, WebSocket compris (ja
 | POST | `/api/servers/{id}/rules/{pvp\|command-blocks}/{true\|false}` | Minecraft 1.21.9 et plus : règle de jeu, retenue dans `foyer-rules.json` et remise à chaque démarrage |
 | GET | `/api/servers/{id}/rules` | valeurs connues de ces règles, suivies dans la console |
 | GET | `/api/journal` | 200 dernières actions `{at, ip, action, status}` : requêtes qui changent quelque chose et commandes console |
+| GET / DELETE | `/api/playit` | `{linked, status}` / délie : supprime les tunnels Foyer et oublie la clé |
+| POST / GET | `/api/playit/link` | lance la liaison, renvoie `{url}` à ouvrir / état : `waiting`, `done`, `rejected`, `expired`, `error` |
+| GET / POST / DELETE | `/api/servers/{id}/tunnel` | `{address, disabled}` ou `null` / crée le tunnel (Minecraft Java TCP, FiveM TCP+UDP) / le supprime ; recréé si le port change, supprimé avec le serveur |
 | GET | `/api/trash` | serveurs supprimés + `deleted_at` |
 | POST / DELETE | `/api/trash/{id}` | restaure (409 si le port est pris) / efface définitivement ; effacement auto après 30 jours |
 | POST | `/api/servers/{id}/start\|stop\|restart` | cycle de vie |

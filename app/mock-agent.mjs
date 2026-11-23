@@ -22,6 +22,8 @@ const backups = [
   { id: 1795300000, auto: false, reason: 'Manuelle', version: 'Paper 1.10.2', size: 8.1e7 },
 ]
 
+let playitLinked = false
+const tunnels = new Map()
 http.createServer(async (q, r) => {
   r.setHeader('Access-Control-Allow-Origin', '*')
   r.setHeader('Access-Control-Allow-Headers', '*')
@@ -33,6 +35,21 @@ http.createServer(async (q, r) => {
   const body = async () => { const b = []; for await (const c of q) b.push(c); return Buffer.concat(b) }
   if (q.method !== 'GET') journal.unshift({ at: Math.floor(Date.now() / 1000), ip: '127.0.0.1', action: `${q.method} ${q.url}`, status: 204 })
   if (u.pathname === '/api/journal') return json(journal)
+  if (u.pathname === '/api/playit') {
+    if (q.method === 'DELETE') return (playitLinked = false, tunnels.clear(), r.writeHead(204).end())
+    return json({ linked: playitLinked, status: playitLinked ? 'ready' : null })
+  }
+  if (u.pathname === '/api/playit/link') {
+    if (q.method === 'POST') { setTimeout(() => (playitLinked = true), 4000); return json({ url: 'https://playit.gg/claim/0123456789' }) }
+    return json(playitLinked ? 'done' : 'waiting')
+  }
+  const tu = u.pathname.match(/^\/api\/servers\/(\w+)\/tunnel$/)
+  if (tu) {
+    if (q.method === 'POST') { tunnels.set(tu[1], Date.now()); return r.writeHead(201).end() }
+    if (q.method === 'DELETE') { tunnels.delete(tu[1]); return r.writeHead(204).end() }
+    const t = tunnels.get(tu[1])
+    return json(t ? { address: Date.now() - t > 3000 ? 'chene-test.joinmc.link' : null, disabled: null } : null)
+  }
   const tr = u.pathname.match(/^\/api\/trash(?:\/(\w+))?$/)
   if (tr) {
     if (!tr[1]) return json(trash)

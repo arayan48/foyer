@@ -11,6 +11,7 @@ mod pack;
 mod players;
 mod software;
 mod trash;
+mod tunnel;
 
 use anyhow::Result;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -193,6 +194,7 @@ async fn run() -> Result<()> {
     tokio::spawn(stats_loop(app.clone()));
     tokio::spawn(disk_loop(app.clone()));
     tokio::spawn(trash::purge_loop(app.clone()));
+    tokio::spawn(tunnel::run_loop(app.clone()));
     let auto: Vec<String> = app.servers.lock().await.iter().filter(|s| s.auto_start).map(|s| s.id.clone()).collect();
     for id in auto {
         if let Err(e) = start(&app, &id).await {
@@ -225,6 +227,9 @@ async fn run() -> Result<()> {
         .route("/api/servers/{id}/players/{name}/{action}", post(players::act))
         .route("/api/servers/{id}/rules/{rule}/{on}", post(players::rule))
         .route("/api/servers/{id}/rules", get(players::rules))
+        .route("/api/servers/{id}/tunnel", get(tunnel::get).post(tunnel::add).delete(tunnel::remove))
+        .route("/api/playit", get(tunnel::account).delete(tunnel::unlink))
+        .route("/api/playit/link", get(tunnel::link_state).post(tunnel::link_start))
         .route("/api/journal", get(journal::list))
         .route("/api/trash", get(trash::list))
         .route("/api/trash/{id}", post(trash::restore).delete(trash::purge))
@@ -705,6 +710,9 @@ async fn update(State(app): S, UrlPath(id): UrlPath<String>, Json(p): Json<Patch
     if s.port != old.port {
         firewall(&old, false).await;
         firewall(&s, true).await;
+        if let Err((_, e)) = tunnel::moved(&app.data, &s).await {
+            journal::agent(&format!("tunnel de {} : {e}", s.name));
+        }
     }
     Ok(Json(s))
 }
@@ -726,6 +734,9 @@ async fn remove(State(app): S, UrlPath(id): UrlPath<String>) -> Result<StatusCod
     drop(servers);
     app.live.lock().await.remove(&id);
     firewall(&s, false).await;
+    if let Err((_, e)) = tunnel::forget(&app.data, &id).await {
+        journal::agent(&format!("tunnel de {} : {e}", s.name));
+    }
     #[cfg(target_os = "linux")]
     limits::linux::remove(&id);
     Ok(StatusCode::NO_CONTENT)
