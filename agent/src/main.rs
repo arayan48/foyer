@@ -214,6 +214,7 @@ async fn run() -> Result<()> {
         .route("/api/servers/{id}/plugins/{file}", axum::routing::delete(plugin_del).patch(plugin_toggle))
         .route("/api/servers/{id}/files", get(files::list).post(files::mkdir).patch(files::rename).delete(files::delete))
         .route("/api/servers/{id}/files/content", get(files::read).put(files::write))
+        .route("/api/servers/{id}/files/extract", post(files::extract))
         .route("/api/servers/{id}/backups", get(backups::list).post(backups::add))
         .route("/api/servers/{id}/backups/{backup}", post(backups::restore).delete(backups::delete))
         .route("/api/servers/{id}/players", get(players::list))

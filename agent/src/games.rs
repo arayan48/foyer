@@ -581,7 +581,7 @@ pub fn plugin_file_ok(n: &str) -> bool {
 }
 
 /// `tar` (bsdtar sous Windows) sait lire zip, tar.gz et tar.xz.
-async fn extract(file: &Path, to: &Path) -> Result<()> {
+pub async fn extract(file: &Path, to: &Path) -> Result<()> {
     tokio::fs::create_dir_all(to).await?;
     let st = tokio::process::Command::new("tar").arg("-xf").arg(file).arg("-C").arg(to).status().await?;
     if !st.success() {

@@ -177,6 +177,70 @@ pub async fn delete(State(app): S, UrlPath(id): UrlPath<String>, Query(q): Query
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Extrait une archive (zip, tar.gz…) dans son dossier : un modpack serveur, par exemple.
+/// Un dossier unique en tête est retiré, les dossiers existants sont fusionnés, les fichiers du même nom remplacés.
+pub async fn extract(State(app): S, UrlPath(id): UrlPath<String>, Query(q): Query<At>) -> Result<StatusCode, Err> {
+    let file = resolve(&root(&app, &id).await?, &q.path)?;
+    if !file.is_file() {
+        return Err(bad("Ce n'est pas un fichier"));
+    }
+    let dest = file.parent().ok_or_else(|| bad("Chemin invalide"))?.to_path_buf();
+    let tmp = app.data.join("tmp").join(format!("x{:016x}", rand::random::<u64>()));
+    let r = unpack(&file, &dest, &tmp).await;
+    let _ = tokio::fs::remove_dir_all(&tmp).await;
+    r.map_err(|e| bad(&format!("Extraction impossible : {e}")))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn unpack(file: &Path, dest: &Path, tmp: &Path) -> anyhow::Result<()> {
+    crate::games::extract(file, tmp).await?;
+    let (tmp, dest) = (tmp.to_path_buf(), dest.to_path_buf());
+    tokio::task::spawn_blocking(move || {
+        // les liens de l'archive pourraient viser hors du dossier du serveur
+        drop_links(&tmp)?;
+        let mut top: Vec<_> = std::fs::read_dir(&tmp)?.collect::<Result<_, _>>()?;
+        let src = match top.as_slice() {
+            [e] if e.file_type()?.is_dir() => top.remove(0).path(),
+            _ => tmp,
+        };
+        merge(&src, &dest)
+    })
+    .await??;
+    Ok(())
+}
+
+fn drop_links(dir: &Path) -> std::io::Result<()> {
+    for e in std::fs::read_dir(dir)? {
+        let e = e?;
+        let t = e.file_type()?;
+        if t.is_symlink() {
+            std::fs::remove_file(e.path())?;
+        } else if t.is_dir() {
+            drop_links(&e.path())?;
+        }
+    }
+    Ok(())
+}
+
+fn merge(from: &Path, to: &Path) -> std::io::Result<()> {
+    for e in std::fs::read_dir(from)? {
+        let e = e?;
+        let dst = to.join(e.file_name());
+        let old = std::fs::symlink_metadata(&dst).ok();
+        if e.file_type()?.is_dir() && old.as_ref().is_some_and(|m| m.is_dir()) {
+            merge(&e.path(), &dst)?;
+            continue;
+        }
+        match old {
+            Some(m) if m.is_dir() => std::fs::remove_dir_all(&dst)?,
+            Some(_) => std::fs::remove_file(&dst)?,
+            None => {}
+        }
+        std::fs::rename(e.path(), dst)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,6 +272,28 @@ mod tests {
             // le lien lui-même reste supprimable
             assert_eq!(resolve_entry(&root, "lien").unwrap(), real.join("lien"));
         }
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[tokio::test]
+    async fn archive_fusionnee_sans_dossier_de_tete() {
+        let base = std::env::temp_dir().join(format!("foyer-x-{:x}", rand::random::<u64>()));
+        let (pack, srv) = (base.join("src/pack"), base.join("srv"));
+        for d in [pack.join("mods"), pack.join("config"), srv.join("mods"), srv.join("config")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(pack.join("mods/a.jar"), "a").unwrap();
+        std::fs::write(pack.join("config/c.toml"), "neuf").unwrap();
+        std::fs::write(srv.join("mods/old.jar"), "o").unwrap();
+        std::fs::write(srv.join("config/c.toml"), "vieux").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("/etc", pack.join("lien")).unwrap();
+        let arc = base.join("pack.tar.gz");
+        assert!(std::process::Command::new("tar").arg("-czf").arg(&arc).arg("-C").arg(base.join("src")).arg("pack").status().unwrap().success());
+        unpack(&arc, &srv, &base.join("tmp")).await.unwrap();
+        assert!(srv.join("mods/a.jar").is_file() && srv.join("mods/old.jar").is_file());
+        assert_eq!(std::fs::read_to_string(srv.join("config/c.toml")).unwrap(), "neuf");
+        assert!(std::fs::symlink_metadata(srv.join("lien")).is_err());
         std::fs::remove_dir_all(base).unwrap();
     }
 }

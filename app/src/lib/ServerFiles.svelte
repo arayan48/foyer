@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Folder, File as FileIcon, FolderPlus, FilePlus, Upload, Download, Pencil, Trash2, ArrowLeft, ChevronRight } from 'lucide-svelte'
+  import { Folder, File as FileIcon, FolderPlus, FilePlus, Upload, Download, Pencil, Trash2, ArrowLeft, ChevronRight, PackageOpen } from 'lucide-svelte'
   import Confirm from './Confirm.svelte'
   import SaveBar from './SaveBar.svelte'
   import { call, callText, download, upload, size, when, type Conn, type Server } from './api'
@@ -19,6 +19,7 @@
   let naming = $state<{ kind: 'dir' | 'file' | 'rename'; from: string; value: string } | null>(null)
   let target = $state<Entry | null>(null)
   let askDelete = $state(false)
+  let askExtract = $state(false)
   let pending = $state<File[]>([])
   let askReplace = $state(false)
   let editor = $state<{ path: string; name: string; crlf: boolean; saved: string; text: string } | null>(null)
@@ -138,6 +139,8 @@
       const saved = await download(conn, content(join(e.name)), e.name)
       if (saved) info = `Enregistré : ${saved}`
     })
+  const archive = (n: string) => /\.(zip|tar\.gz|tgz|tar\.xz|tar)$/i.test(n)
+  const extract = () => run('Extraction…', () => call(conn, `${base}/extract?path=${encodeURIComponent(join(target!.name))}`, { method: 'POST' }))
   const remove = () => run('Suppression…', () => call(conn, at(join(target!.name)), { method: 'DELETE' }))
   const focus = (el: HTMLInputElement) => (el.focus(), el.select())
 </script>
@@ -190,6 +193,7 @@
           <span class="meta sz">{e.dir ? '' : size(e.size)}</span>
           <span class="meta dt">{when(e.modified)}</span>
           <span class="acts">
+            {#if !e.dir && archive(e.name)}<button class="btn icon ghost" disabled={!!busy} onclick={() => { target = e; askExtract = true }} title="Extraire ici" aria-label="Extraire {e.name}"><PackageOpen size={15} /></button>{/if}
             {#if !e.dir}<button class="btn icon ghost" disabled={!!busy} onclick={() => get(e)} title="Télécharger" aria-label="Télécharger {e.name}"><Download size={15} /></button>{/if}
             <button class="btn icon ghost" disabled={!!busy} onclick={() => (naming = { kind: 'rename', from: e.name, value: e.name })} title="Renommer" aria-label="Renommer {e.name}"><Pencil size={15} /></button>
             <button class="btn icon ghost danger" disabled={!!busy} onclick={() => { target = e; askDelete = true }} title="Supprimer" aria-label="Supprimer {e.name}"><Trash2 size={15} /></button>
@@ -201,6 +205,7 @@
 {/if}
 
 <Confirm bind:open={askDelete} title="Supprimer « {target?.name} » ?" text={target?.dir ? 'Le dossier et tout son contenu sont effacés, sans corbeille.' : 'Le fichier est effacé, sans corbeille.'} onconfirm={remove} />
+<Confirm bind:open={askExtract} title="Extraire « {target?.name} » ici ?" text="Les fichiers du même nom sont remplacés. Pour un modpack, arrête le serveur avant." action="Extraire" onconfirm={extract} />
 <Confirm bind:open={askReplace} title={names.length > 1 ? `Remplacer ${names.length} fichiers ?` : `Remplacer « ${names[0]} » ?`} text="L'ancienne version est perdue." action="Remplacer" onconfirm={send} />
 <Confirm bind:open={askLeave} title="Quitter sans enregistrer ?" text="Les modifications de ce fichier sont perdues." action="Quitter" onconfirm={leave} />
 
@@ -216,7 +221,7 @@
   .name { display: flex; gap: 8px; margin-bottom: 12px; }
   .name input { flex: 1; min-width: 0; }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: grid; grid-template-columns: minmax(0, 1fr) 80px 130px 120px; align-items: center; gap: 12px; padding: 2px 4px 2px 0; border-radius: var(--r-sm); transition: background 150ms var(--ease); }
+  li { display: grid; grid-template-columns: minmax(0, 1fr) 80px 130px 156px; align-items: center; gap: 12px; padding: 2px 4px 2px 0; border-radius: var(--r-sm); transition: background 150ms var(--ease); }
   li:hover { background: var(--line-soft); }
   .open { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 10px; border: 0; border-radius: var(--r-sm); background: none; text-align: left; cursor: pointer; }
   .open:disabled { cursor: default; opacity: 0.6; }
