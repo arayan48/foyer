@@ -46,7 +46,7 @@ async fn erase(dir: &Path, id: u64) -> std::io::Result<()> {
     tokio::fs::remove_file(dir.join(format!("{id}.json"))).await
 }
 
-async fn tar(args: &[&std::ffi::OsStr], tolerate_changes: bool) -> Result<()> {
+pub(crate) async fn tar(args: &[&std::ffi::OsStr], tolerate_changes: bool) -> Result<()> {
     let out = tokio::process::Command::new("tar").args(args).kill_on_drop(true).output().await?;
     // GNU tar renvoie 1 quand un fichier a changé pendant la lecture, sans conséquence à chaud
     if out.status.success() || (cfg!(target_os = "linux") && tolerate_changes && out.status.code() == Some(1)) {

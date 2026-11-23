@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { IdCard, Cpu, Power, TriangleAlert, Trash2 } from 'lucide-svelte'
+  import { IdCard, Cpu, Power, TriangleAlert, Trash2, Download } from 'lucide-svelte'
   import SaveBar from './SaveBar.svelte'
   import Confirm from './Confirm.svelte'
   import SubPages from './SubPages.svelte'
-  import { bytes, call, patchServer, type Conn, type Host, type Server } from './api'
+  import { bytes, call, download, patchServer, type Conn, type Host, type Server } from './api'
 
   let { conn, server, ondelete }: { conn: Conn; server: Server; ondelete: (s: Server) => void } = $props()
 
@@ -23,7 +23,21 @@
   let page = $state('server')
   // cœurs logiques de la machine, pour la grille des cœurs
   let threads = $state(0)
-  call<Host>(conn, '/api/system').then((h) => (threads = Math.min(h.threads ?? 0, 64))).catch(() => {})
+  let windows = $state(true)
+  call<Host>(conn, '/api/system').then((h) => ((threads = Math.min(h.threads ?? 0, 64)), (windows = /windows/i.test(h.os ?? '')))).catch(() => {})
+
+  // archive complète, à réimporter dans un autre Foyer (Nouveau serveur, Importer)
+  let exporting = $state(false)
+  let exported = $state('')
+  async function exportServer() {
+    exporting = true
+    error = ''
+    exported = ''
+    try {
+      const file = `${server.name.replace(/[^\w-]+/g, '-')}.${windows ? 'zip' : 'tar.gz'}`
+      exported = (await download(conn, `/api/servers/${server.id}/export`, file)) || file
+    } catch (e) { error = (e as Error).message } finally { exporting = false }
+  }
   const toggleCore = (c: number) => (f.cores = f.cores.includes(c) ? f.cores.filter((x) => x !== c) : [...f.cores, c].sort((a, b) => a - b))
   const dirty = $derived(JSON.stringify(f) !== JSON.stringify(saved))
 
@@ -63,7 +77,12 @@
             <div class="val">{bytes(server.disk)}</div>
           </div>
         {/if}
+        <div class="row">
+          <div><strong>Exporter</strong><small>{exported ? `Enregistré : ${exported}` : server.status === 'stopped' || server.status === 'error' ? 'Tout le serveur en une archive, à importer dans un autre Foyer.' : "Arrête le serveur d'abord."}</small></div>
+          <div class="val"><button class="btn" disabled={exporting || !(server.status === 'stopped' || server.status === 'error')} onclick={exportServer}><Download size={14} /> {exporting ? 'Export…' : 'Exporter'}</button></div>
+        </div>
       </div>
+      {#if error && page === 'server'}<p class="err-text" role="alert">{error}</p>{/if}
 
     {:else if page === 'resources'}
       <h2>Ressources</h2>

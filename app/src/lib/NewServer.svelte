@@ -233,10 +233,10 @@
   <label class="field">
     <span>Serveur à reprendre</span>
     <div class="row">
-      <input class="input" bind:value={from} placeholder="C:\Serveurs\survie ou https://…/serveur.zip" spellcheck="false" required oninput={() => (found = null)} />
+      <input class="input" bind:value={from} placeholder="C:\Serveurs\survie, C:\export.zip ou https://…/serveur.zip" spellcheck="false" required oninput={() => (found = null)} />
       <button type="button" class="btn" disabled={!from.trim() || analysing} onclick={analyse}>{analysing ? 'Analyse…' : 'Analyser'}</button>
     </div>
-    <small>Dossier sur la machine du serveur, ou lien d'une archive .zip. L'original n'est pas modifié.</small>
+    <small>Dossier ou archive (.zip, .tar.gz) sur la machine du serveur, ou lien https. L'original n'est pas modifié.</small>
   </label>
   {#if found}
     {#if from.trim().startsWith('https://') && !found.software}<p class="note">Le contenu d'un lien n'est analysé qu'à l'installation. Laisse « Détecter » ou choisis toi-même.</p>{/if}

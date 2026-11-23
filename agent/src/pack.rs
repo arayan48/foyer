@@ -14,10 +14,16 @@ pub async fn fetch(url: &str, tmp: &Path, log: &impl Fn(String)) -> Result<PathB
     let file = tmp.join("pack.zip");
     log("Téléchargement du modpack…".into());
     games::download(url, &file).await?;
-    log("Extraction du modpack…".into());
-    let out = tmp.join("x");
-    games::extract(&file, &out).await?;
+    let src = open(&file, tmp, log).await?;
     tokio::fs::remove_file(&file).await.ok();
+    Ok(src)
+}
+
+/// Ouvre une archive (zip, tar.gz…) dans `tmp/x`. Renvoie le dossier utile.
+pub async fn open(file: &Path, tmp: &Path, log: &impl Fn(String)) -> Result<PathBuf> {
+    log("Extraction…".into());
+    let out = tmp.join("x");
+    games::extract(file, &out).await?;
     let src = tokio::task::spawn_blocking(move || -> std::io::Result<PathBuf> {
         // les liens de l'archive pourraient viser hors du dossier du serveur
         files::drop_links(&out)?;

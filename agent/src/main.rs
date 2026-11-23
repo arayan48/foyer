@@ -211,6 +211,7 @@ async fn run() -> Result<()> {
         .route("/api/servers/{id}/{action}", post(action))
         .route("/api/servers/{id}/software", post(software_set))
         .route("/api/servers/{id}/console", get(console))
+        .route("/api/servers/{id}/export", get(export))
         .route("/api/servers/{id}/properties", get(props_get).put(props_put))
         .route("/api/servers/{id}/plugins", get(plugins).post(plugin_add))
         .route("/api/servers/{id}/plugins/search", get(plugin_search))
@@ -536,12 +537,45 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
     Ok(Json(s))
 }
 
+/// Archive du serveur arrêté, à réimporter ailleurs : .zip sous Windows, .tar.gz sinon.
+async fn export(State(app): S, UrlPath(id): UrlPath<String>) -> Result<axum::response::Response, Err> {
+    use axum::response::IntoResponse;
+    use tokio::io::AsyncReadExt;
+    if !app.servers.lock().await.iter().any(|s| s.id == id) {
+        return Err((StatusCode::NOT_FOUND, "serveur inconnu".into()));
+    }
+    if !app.live.lock().await.get(&id).is_some_and(|l| !l.backing && matches!(l.status, Status::Stopped | Status::Error)) {
+        return Err((StatusCode::CONFLICT, "Arrête le serveur d'abord".into()));
+    }
+    let tmp = app.data.join("tmp");
+    tokio::fs::create_dir_all(&tmp).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let file = tmp.join(format!("export-{:016x}.{}", rand::random::<u64>(), if cfg!(windows) { "zip" } else { "tar.gz" }));
+    let from = app.data.join("servers").join(&id);
+    let o = std::ffi::OsStr::new;
+    // bsdtar (Windows) choisit le zip d'après l'extension avec -a
+    let mode = if cfg!(windows) { "-acf" } else { "-czf" };
+    if let Err(e) = backups::tar(&[o(mode), file.as_os_str(), o("--exclude"), o("session.lock"), o("-C"), from.as_os_str(), o(".")], false).await {
+        tokio::fs::remove_file(&file).await.ok();
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("export impossible : {e:#}")));
+    }
+    let f = tokio::fs::File::open(&file).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    // l'archive est effacée quand l'envoi se termine ou que le client coupe
+    let guard = files::Tmp(file);
+    let body = axum::body::Body::from_stream(futures_util::stream::try_unfold((f, guard), |(mut f, g)| async move {
+        let mut buf = vec![0; 64 * 1024];
+        let n = f.read(&mut buf).await?;
+        buf.truncate(n);
+        Ok::<_, std::io::Error>((n > 0).then_some((buf, (f, g))))
+    }));
+    Ok(([(axum::http::header::CONTENT_TYPE, "application/octet-stream")], body).into_response())
+}
+
 #[derive(Deserialize)]
 struct From { from: String }
 
 /// Devine logiciel, version, port et RAM d'un serveur existant sur cette machine. Rien pour un lien.
 async fn import_detect(State(app): S, Json(b): Json<From>) -> Result<Json<import::Found>, Err> {
-    let p = local_source(&app, &b.from)?;
+    let p = local_source(&app, &b.from)?.filter(|p| p.is_dir());
     Ok(Json(tokio::task::spawn_blocking(move || p.map(|p| import::detect(&p)).unwrap_or_default()).await.unwrap_or_default()))
 }
 
@@ -552,8 +586,9 @@ fn local_source(app: &App, from: &str) -> Result<Option<std::path::PathBuf>, Err
         return Ok(None);
     }
     let p = std::path::PathBuf::from(from);
-    if !p.is_absolute() || !p.is_dir() {
-        return Err((StatusCode::BAD_REQUEST, "Dossier introuvable sur le serveur (chemin complet attendu)".into()));
+    let archive = p.is_file() && [".zip", ".tar.gz", ".tgz", ".tar"].iter().any(|e| from.to_lowercase().ends_with(e));
+    if !p.is_absolute() || !(p.is_dir() || archive) {
+        return Err((StatusCode::BAD_REQUEST, "Dossier ou archive introuvable sur le serveur (chemin complet attendu)".into()));
     }
     // les données de Foyer ne se copient pas dans elles-mêmes
     if p.canonicalize().ok().zip(app.data.canonicalize().ok()).is_some_and(|(p, d)| p.starts_with(&d) || d.starts_with(&p)) {
@@ -566,6 +601,7 @@ fn local_source(app: &App, from: &str) -> Result<Option<std::path::PathBuf>, Err
 async fn import_into(app: &Arc<App>, from: &str, dir: &std::path::Path, tmp: &std::path::Path, port: u16, setup: &mut games::Setup, log: &impl Fn(String)) -> anyhow::Result<String> {
     tokio::fs::create_dir_all(dir).await?;
     let src = match local_source(app, from).map_err(|e| anyhow::anyhow!(e.1))? {
+        Some(p) if p.is_file() => pack::open(&p, tmp, log).await?,
         Some(p) => p,
         None => pack::fetch(from, tmp, log).await?,
     };

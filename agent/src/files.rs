@@ -115,7 +115,7 @@ pub async fn read(State(app): S, UrlPath(id): UrlPath<String>, Query(q): Query<A
 }
 
 /// Efface le fichier temporaire si l'envoi échoue ou si le client coupe.
-struct Tmp(PathBuf);
+pub(crate) struct Tmp(pub(crate) PathBuf);
 impl Drop for Tmp {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.0);
