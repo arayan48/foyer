@@ -84,6 +84,8 @@ pub struct Setup {
     pub db_url: Option<String>,
     /// Minecraft : lien https d'un modpack (.mrpack Modrinth ou server pack .zip).
     pub pack: Option<String>,
+    /// Minecraft : serveur existant à reprendre, dossier sur cette machine ou lien https d'un .zip.
+    pub import: Option<String>,
 }
 
 /// Base créée par Foyer dans la MariaDB locale.

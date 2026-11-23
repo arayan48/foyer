@@ -71,7 +71,7 @@ fn tidy(list: impl IntoIterator<Item = String>) -> Vec<String> {
 }
 
 /// Version de Minecraft d'une version stable de NeoForge : 21.1.77 → 1.21.1, 26.3.0.115 → 26.3.
-fn neo_mc(v: &str) -> Option<String> {
+pub fn neo_mc(v: &str) -> Option<String> {
     let n: Vec<u32> = v.split('.').map(|x| x.parse().ok()).collect::<Option<_>>()?;
     match n.as_slice() {
         [a, 0, _] if (20..26).contains(a) => Some(format!("1.{a}")),

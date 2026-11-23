@@ -150,6 +150,44 @@
     else step--
   }
 
+  // import d'un serveur Minecraft existant : dossier sur la machine du serveur ou lien d'un .zip
+  let importing = $state(false)
+  let from = $state('')
+  let found = $state<{ software?: Software; version?: string; port?: number; ram_mb?: number } | null>(null)
+  let impSw = $state<Software | ''>('')
+  let impVersion = $state('')
+  let analysing = $state(false)
+  let impPort = $derived.by(() => {
+    const used = new Set(servers.flatMap((s) => [s.port, s.admin_port]))
+    let p = found?.port ?? 25565
+    while (used.has(p)) p++
+    return p
+  })
+  async function analyse() {
+    analysing = true
+    error = ''
+    try {
+      found = await call(conn, '/api/import/detect', { method: 'POST', body: JSON.stringify({ from: from.trim() }) })
+      impSw = found?.software ?? ''
+      impVersion = found?.version ?? ''
+      if (found?.ram_mb) ram = Math.min(12, Math.max(1, Math.round(found.ram_mb / 1024)))
+      if (!name.trim()) name = from.trim().replace(/[\\/]+$/, '').split(/[\\/]/).pop()?.replace(/\.zip.*$/i, '') ?? ''
+    } catch (e) { error = (e as Error).message } finally { analysing = false }
+  }
+  async function importSubmit(e: SubmitEvent) {
+    e.preventDefault()
+    if (cmpVersion(agent, '0.4.28') < 0) return (error = "Mets d'abord Foyer Serveur à jour pour importer.")
+    busy = true
+    error = ''
+    try {
+      const s = await call<Server>(conn, '/api/servers', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim() || 'minecraft-importe', game: 'minecraft', port: impPort, ram_mb: ram * 1024, eula, import: from.trim(), software: impSw || undefined, version: impVersion.trim() || undefined }),
+      })
+      oncreated(s)
+    } catch (err) { error = (err as Error).message } finally { busy = false }
+  }
+
   async function submit(e: SubmitEvent) {
     e.preventDefault()
     if (!last) {
@@ -186,8 +224,57 @@
 
 <header>
   <button class="btn icon" onclick={back} aria-label="Retour"><ArrowLeft size={16} /></button>
-  <h1>Nouveau serveur</h1>
+  <h1>{importing ? 'Importer un serveur' : 'Nouveau serveur'}</h1>
+  {#if !importing}<button class="btn imp" onclick={() => ((importing = true), (error = ''))}>Importer un serveur Minecraft</button>{/if}
 </header>
+
+{#if importing}
+<form onsubmit={importSubmit}>
+  <label class="field">
+    <span>Serveur à reprendre</span>
+    <div class="row">
+      <input class="input" bind:value={from} placeholder="C:\Serveurs\survie ou https://…/serveur.zip" spellcheck="false" required oninput={() => (found = null)} />
+      <button type="button" class="btn" disabled={!from.trim() || analysing} onclick={analyse}>{analysing ? 'Analyse…' : 'Analyser'}</button>
+    </div>
+    <small>Dossier sur la machine du serveur, ou lien d'une archive .zip. L'original n'est pas modifié.</small>
+  </label>
+  {#if found}
+    {#if from.trim().startsWith('https://') && !found.software}<p class="note">Le contenu d'un lien n'est analysé qu'à l'installation. Laisse « Détecter » ou choisis toi-même.</p>{/if}
+    <label class="field">
+      <span>Logiciel</span>
+      <select class="input" bind:value={impSw}>
+        <option value="">Détecter à l'installation</option>
+        {#each Object.entries(SOFTWARE) as [k, s] (k)}<option value={k}>{s.label}{found.software === k ? ' (reconnu)' : ''}</option>{/each}
+      </select>
+    </label>
+    <label class="field">
+      <span>Version de Minecraft</span>
+      <input class="input" bind:value={impVersion} placeholder="Détecter à l'installation" spellcheck="false" />
+    </label>
+    <label class="field">
+      <span>Nom</span>
+      <input class="input" bind:value={name} maxlength="60" placeholder="minecraft-importe" />
+    </label>
+    <label class="field">
+      <span>Mémoire réservée : {ram} Go{found.ram_mb ? ' (reprise du serveur)' : ''}</span>
+      <input type="range" min="1" max="12" bind:value={ram} />
+    </label>
+    <dl class="recap">
+      <dt>Port</dt><dd>{impPort}{found.port && found.port !== impPort ? ` (${found.port} déjà pris)` : ''}</dd>
+    </dl>
+    <p class="note">Foyer réinstalle le logiciel serveur. Mondes, mods, plugins et réglages sont gardés.</p>
+    <label class="check">
+      <input type="checkbox" bind:checked={eula} required />
+      <span>J'accepte le <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noreferrer">contrat de licence (EULA) de Minecraft</a>.</span>
+    </label>
+  {/if}
+  {#if error}<p class="err-text" role="alert">{error}</p>{/if}
+  <div class="foot">
+    <button type="button" class="btn" onclick={() => ((importing = false), (found = null), (error = ''))}>Annuler</button>
+    <button class="btn primary" disabled={busy || !found}>{busy ? 'Import…' : 'Importer'}</button>
+  </div>
+</form>
+{:else}
 
 <div class="steps" class:wide={current === 'Jeu'}>
   <div class="steps-label"><span>{current}</span><span class="steps-count">{step + 1} / {steps.length}</span></div>
@@ -395,7 +482,9 @@
     {/if}
   </div>
 </form>
+{/if}
 <style>
+  .imp { margin-left: auto; }
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
   form { display: grid; gap: 20px; max-width: 560px; }
   fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }

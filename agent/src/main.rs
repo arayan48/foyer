@@ -3,6 +3,7 @@
 mod backups;
 mod files;
 mod games;
+mod import;
 mod journal;
 mod limits;
 mod orphans;
@@ -205,6 +206,7 @@ async fn run() -> Result<()> {
         .route("/api/catalog", get(catalog))
         .route("/api/catalog/{software}", get(software_versions))
         .route("/api/servers", get(list).post(create))
+        .route("/api/import/detect", post(import_detect))
         .route("/api/servers/{id}", axum::routing::delete(remove).patch(update))
         .route("/api/servers/{id}/{action}", post(action))
         .route("/api/servers/{id}/software", post(software_set))
@@ -495,7 +497,10 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
                 }
                 None => None,
             };
-            let v = games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await?;
+            let v = match setup.import.clone().filter(|f| !f.trim().is_empty() && s2.game == Game::Minecraft) {
+                Some(from) => import_into(&app2, from.trim(), &dir, &tmp, s2.port, &mut setup, &log).await?,
+                None => games::install(s2.game, &app2.data, &dir, s2.port, &s2.name, &setup, &log).await?,
+            };
             if let Some(src) = pack {
                 pack::apply(&src, &dir, &log).await?;
                 log("Modpack installé.".into());
@@ -529,6 +534,58 @@ async fn create(State(app): S, Json(n): Json<NewServer>) -> Result<Json<Server>,
         }
     });
     Ok(Json(s))
+}
+
+#[derive(Deserialize)]
+struct From { from: String }
+
+/// Devine logiciel, version, port et RAM d'un serveur existant sur cette machine. Rien pour un lien.
+async fn import_detect(State(app): S, Json(b): Json<From>) -> Result<Json<import::Found>, Err> {
+    let p = local_source(&app, &b.from)?;
+    Ok(Json(tokio::task::spawn_blocking(move || p.map(|p| import::detect(&p)).unwrap_or_default()).await.unwrap_or_default()))
+}
+
+/// Dossier local valide, None pour un lien https.
+fn local_source(app: &App, from: &str) -> Result<Option<std::path::PathBuf>, Err> {
+    let from = from.trim();
+    if from.starts_with("https://") {
+        return Ok(None);
+    }
+    let p = std::path::PathBuf::from(from);
+    if !p.is_absolute() || !p.is_dir() {
+        return Err((StatusCode::BAD_REQUEST, "Dossier introuvable sur le serveur (chemin complet attendu)".into()));
+    }
+    // les données de Foyer ne se copient pas dans elles-mêmes
+    if p.canonicalize().ok().zip(app.data.canonicalize().ok()).is_some_and(|(p, d)| p.starts_with(&d) || d.starts_with(&p)) {
+        return Err((StatusCode::BAD_REQUEST, "Ce dossier appartient déjà à Foyer".into()));
+    }
+    Ok(Some(p))
+}
+
+/// Reprend un serveur existant : copie, détection, puis logiciel posé par Foyer. Mondes et réglages gardés, port remplacé.
+async fn import_into(app: &Arc<App>, from: &str, dir: &std::path::Path, tmp: &std::path::Path, port: u16, setup: &mut games::Setup, log: &impl Fn(String)) -> anyhow::Result<String> {
+    tokio::fs::create_dir_all(dir).await?;
+    let src = match local_source(app, from).map_err(|e| anyhow::anyhow!(e.1))? {
+        Some(p) => p,
+        None => pack::fetch(from, tmp, log).await?,
+    };
+    log(format!("Copie de {}…", src.display()));
+    let (s, d) = (src.clone(), dir.to_path_buf());
+    tokio::task::spawn_blocking(move || import::copy(&s, &d)).await??;
+    let d = dir.to_path_buf();
+    let f = tokio::task::spawn_blocking(move || import::detect(&d)).await?;
+    let sw = setup.software.or(f.software).ok_or_else(|| anyhow::anyhow!("logiciel du serveur non reconnu, choisis-le à la main"))?;
+    let mc = setup.version.clone().or(f.version);
+    log(format!("Reconnu : {} {}.", sw.label(), mc.as_deref().unwrap_or("?")));
+    let props = tokio::fs::read_to_string(dir.join("server.properties")).await.ok();
+    let v = software::install(sw, &app.data, dir, mc.as_deref(), setup.java, log).await?;
+    tokio::fs::write(dir.join("eula.txt"), "eula=true\n").await?;
+    let props = match props {
+        Some(p) => games::set_props(&p, &[("server-port", &port.to_string()), ("query.port", &port.to_string())]),
+        None => setup.properties(port, software::parse(Some(&v)).1.as_deref().unwrap_or(""))?,
+    };
+    tokio::fs::write(dir.join("server.properties"), props).await?;
+    Ok(v)
 }
 
 #[derive(Deserialize)]
