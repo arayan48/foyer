@@ -24,6 +24,38 @@
   let loading = $state(true)
   let view = $state<{ name: 'home' } | { name: 'list' } | { name: 'new' } | { name: 'settings' } | { name: 'journal' } | { name: 'trash' } | { name: 'server'; id: string } | { name: 'soon'; id: string }>({ name: 'home' })
 
+  // historique des pages : retour/avance à la souris (boutons latéraux), Alt+←/→ et pavé numérique 4/6
+  let fromHistory = false
+  let firstView = true
+  $effect(() => {
+    const v = $state.snapshot(view)
+    if (fromHistory) fromHistory = false
+    else if (firstView) history.replaceState(v, '')
+    else history.pushState(v, '')
+    firstView = false
+  })
+  function onPop(e: PopStateEvent) {
+    if (!e.state?.name) return
+    fromHistory = true
+    view = e.state
+  }
+  function typing(t: EventTarget | null) {
+    return t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
+  }
+  function onKey(e: KeyboardEvent) {
+    if (typing(e.target)) return
+    if ((e.altKey && e.key === 'ArrowLeft') || e.code === 'Numpad4') history.back()
+    else if ((e.altKey && e.key === 'ArrowRight') || e.code === 'Numpad6') history.forward()
+    else return
+    e.preventDefault()
+  }
+  function onMouse(e: MouseEvent) {
+    if (e.button === 3) history.back()
+    else if (e.button === 4) history.forward()
+    else return
+    e.preventDefault()
+  }
+
   // pages prévues : visibles dès maintenant pour situer la suite
   const SOON = [
     { id: 'traffic', label: 'Trafic', icon: Activity, title: 'Analyse du trafic', text: 'Joueurs connectés dans le temps, heures de pointe, bande passante et latence par serveur.' },
@@ -105,6 +137,7 @@
 </script>
 
 <svelte:document onclick={openExternal} />
+<svelte:window onpopstate={onPop} onkeydown={onKey} onmouseup={onMouse} />
 
 {#if !conn}
   <Connect onconnect={connect} />
